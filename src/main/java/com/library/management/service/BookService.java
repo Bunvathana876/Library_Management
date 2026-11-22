@@ -4,83 +4,73 @@ package com.library.management.service;
 import com.library.management.dto.BookRequest;
 import com.library.management.exception.BookNotFoundException;
 import com.library.management.model.Book;
-
+import com.library.management.repository.BookRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Locale;
 
 @Service
 public class BookService {
 
-    private final Map<Long ,Book> books = new LinkedHashMap<>();
-    private long nextId = 3L;
+    private final BookRepository bookRepository;
 
-    public BookService() {
-        books.put(1L, new Book(
-            1L, "Clean Code",
-            "Robert C. Martin", 2008, true
-        ));
-
-        books.put(2L, new Book(
-            2L, "Effective Java",
-            "Joshua Bloch", 2018, true
-        ));
+    public BookService(BookRepository bookRepository) {
+        this.bookRepository = bookRepository;
     }
 
-    // Read All And Search
-    public synchronized List<Book> getAllBooks(String search) {
-        String keyword = search.strip().toLowerCase(Locale.ROOT);
-        return books.values().stream()
-                .filter(book -> book.getTitle().toLowerCase(Locale.ROOT).contains(keyword)
-                        || book.getAuthor().toLowerCase(Locale.ROOT).contains(keyword))
-                .toList();
-    }
-
-    // Read by ID
-    public synchronized Book getBookById(Long id) {
-        Book book = books.get(id);
-        if (book == null){
-            throw new BookNotFoundException(id);
+    // Get all the book
+    @Transactional(readOnly = true)
+    public List<Book> getAllBooks(String search) {
+        if (search == null || search.isBlank()) {
+            return bookRepository.findAll();
         }
-        return book;
+
+        String keyword = search.strip();
+
+        return bookRepository
+            .findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCase(
+                keyword, keyword
+            );
     }
 
-    // Create
-    public synchronized Book createBook(BookRequest request) {
-        
+    // get Book by ID
+    @Transactional(readOnly = true)
+    public Book getBookById(Long id) {
+        return bookRepository.findById(id)
+            .orElseThrow(() -> new BookNotFoundException(id));
+    }
+
+    // Create Book
+    @Transactional
+    public Book createBook(BookRequest request) {
         Book book = new Book(
-            nextId++,
             request.title(),
             request.author(),
-            request.publicationYear(),
-            true
+            request.publicationYear()
         );
 
-        books.put(book.getId(),book);
-
-        return book;
+        return bookRepository.save(book);
     }
 
-    // Update
-    public synchronized Book updateBook(Long id,BookRequest request) {
-        
-        Book existingBook = books.get(id);
+    // Update Book
+    @Transactional
+    public Book updateBook(Long id, BookRequest request) {
+        Book book = getBookById(id);
 
-        Book updatedBook = new Book(id, request.title(), request.author(), request.publicationYear(), existingBook.isAvailable());
+        book.updateDetails(
+            request.title(),
+            request.author(),
+            request.publicationYear()
+        );
 
-        books.put(id, updatedBook);
-
-        return updatedBook;
+        return bookRepository.save(book);
     }
 
-    // Delete
-    public synchronized void deleteBook(Long id) {
-
-        if (books.remove(id) == null) {
-            throw new BookNotFoundException(id);
-        }
+    // Delete Book
+    @Transactional
+    public void deleteBook(Long id) {
+        Book book = getBookById(id);
+        bookRepository.delete(book);
     }
 }

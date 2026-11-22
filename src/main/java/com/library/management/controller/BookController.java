@@ -36,14 +36,14 @@ public class BookController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Book createBook(
-            @RequestBody BookRequest request
+            @Valid @RequestBody BookRequest request
     ) {
         return bookService.createBook(request);
     }
 
     // Update a book
     @PutMapping("/{id}")
-    public Book updateBook(@PatchVariable Long id, @Valid @RequestBody BookRequest request) {
+    public Book updateBook(@PathVariable Long id, @Valid @RequestBody BookRequest request) {
         return bookService.updateBook(id, request);
     }
 
