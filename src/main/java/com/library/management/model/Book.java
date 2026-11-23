@@ -48,6 +48,16 @@ public class Book {
         this.publicationYear = publicationYear;
     }
 
+
+    public void markBorrowed() {
+        this.available = false;
+    }
+
+    public void markReturned() {
+        this.available = true;
+    }
+
+
     public Long getId() {
         return id;
     }

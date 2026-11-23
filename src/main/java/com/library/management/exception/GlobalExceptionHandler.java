@@ -5,15 +5,48 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDatabaseConflict(
+            DataIntegrityViolationException exception
+    ) {
+        return ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            "This operation violates a database constraint"
+        );
+    }
+
+    @ExceptionHandler(BusinessRuleException.class)
+    public ProblemDetail handleBusinessRule(
+        
+            BusinessRuleException exception
+    ) {
+        return ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            exception.getMessage()
+        );
+    }
+
     @ExceptionHandler(BookNotFoundException.class)
     public ProblemDetail handleBookNotFound(
             BookNotFoundException exception
+    ) {
+        return ProblemDetail.forStatusAndDetail(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ProblemDetail handleResourceNotFound(
+            ResourceNotFoundException exception
     ) {
         return ProblemDetail.forStatusAndDetail(
             HttpStatus.NOT_FOUND,
