@@ -31,6 +31,18 @@
 	</properties>
 	<dependencies>
 
+		<!-- Spring Security -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- JWT verification / resource server -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+		</dependency>
+
 		<!-- Database access with JPA and Hibernate -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

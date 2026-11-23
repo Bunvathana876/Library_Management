@@ -2,9 +2,11 @@ package com.library.management.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.LinkedHashMap;
@@ -78,5 +80,26 @@ public class GlobalExceptionHandler {
         problem.setProperty("errors", errors);
 
         return problem;
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleResponseStatus(
+            ResponseStatusException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatus(exception.getStatusCode());
+        if (exception.getReason() != null) {
+            problem.setDetail(exception.getReason());
+        }
+        return problem;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableMessage(
+            HttpMessageNotReadableException exception
+    ) {
+        return ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            "Malformed JSON request or invalid field value"
+        );
     }
 }
