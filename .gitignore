@@ -4,6 +4,14 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Java / JVM ###
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
 ### STS ###
 .apt_generated
 .classpath
@@ -14,10 +22,11 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr
+out/
 
 ### NetBeans ###
 /nbproject/private/
@@ -29,9 +38,20 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### VS Code ###
+### VS Code & Local Tooling ###
 .vscode/
+.github/modernize/
+
+### OS ###
+.DS_Store
+Thumbs.db
 
 ### Local Environment & Logs ###
 .env
+.env.*
+!.env.example
+application-local.properties
+application-local.yml
+application-local.yaml
 *.log
+logs/
