@@ -1,19 +1,62 @@
+
 package com.library.management.model;
 
-public class Book {
-    private final Long id;
-    private final String title;
-    private final String author;
-    private final int publicationYear;
-    private final boolean available;
+import jakarta.persistence.*;
 
-    public Book(Long id, String title, String author, int publicationYear, boolean available) {
-        this.id = id;
+@Entity
+@Table(name = "books")
+public class Book {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 200)
+    private String title;
+
+    @Column(nullable = false, length = 150)
+    private String author;
+
+    @Column(name = "publication_year", nullable = false)
+    private Integer publicationYear;
+
+    @Column(nullable = false)
+    private boolean available;
+
+    protected Book() {
+        // Required by JPA
+    }
+
+    public Book(
+            String title,
+            String author,
+            Integer publicationYear
+    ) {
         this.title = title;
         this.author = author;
         this.publicationYear = publicationYear;
-        this.available = available;
+        this.available = true;
     }
+
+    public void updateDetails(
+            String title,
+            String author,
+            Integer publicationYear
+    ) {
+        this.title = title;
+        this.author = author;
+        this.publicationYear = publicationYear;
+    }
+
+
+    public void markBorrowed() {
+        this.available = false;
+    }
+
+    public void markReturned() {
+        this.available = true;
+    }
+
 
     public Long getId() {
         return id;
@@ -27,7 +70,7 @@ public class Book {
         return author;
     }
 
-    public int getPublicationYear() {
+    public Integer getPublicationYear() {
         return publicationYear;
     }
 

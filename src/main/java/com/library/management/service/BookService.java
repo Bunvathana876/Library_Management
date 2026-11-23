@@ -1,76 +1,76 @@
 
 package com.library.management.service;
 
-import com.library.management.dto.CreateBookRequest;
+import com.library.management.dto.BookRequest;
+import com.library.management.exception.BookNotFoundException;
 import com.library.management.model.Book;
-
-import org.springframework.http.HttpStatus;
+import com.library.management.repository.BookRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class BookService {
 
-    private final List<Book> books = new ArrayList<>();
-    private long nextId = 3L;
+    private final BookRepository bookRepository;
 
-    public BookService() {
-        books.add(new Book(
-            1L, "Clean Code",
-            "Robert C. Martin", 2008, true
-        ));
-
-        books.add(new Book(
-            2L, "Effective Java",
-            "Joshua Bloch", 2018, true
-        ));
+    public BookService(BookRepository bookRepository) {
+        this.bookRepository = bookRepository;
     }
 
-    public List<Book> getAllBooks() {
-        return List.copyOf(books);
-    }
-
-    public Book getBookById(Long id) {
-
-        for (Book book : books) {
-            if (book.getId().equals(id)) {
-                return book;
-            }
+    // Get all the book
+    @Transactional(readOnly = true)
+    public List<Book> getAllBooks(String search) {
+        if (search == null || search.isBlank()) {
+            return bookRepository.findAll();
         }
 
-        throw new ResponseStatusException(
-            HttpStatus.NOT_FOUND,
-            "Book not found"
-        );
-    }
+        String keyword = search.strip();
 
-    public Book createBook(CreateBookRequest request) {
-
-        if (request.title() == null
-                || request.title().isBlank()
-                || request.author() == null
-                || request.author().isBlank()
-                || request.publicationYear() <= 0) {
-
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Valid book details are required"
+        return bookRepository
+            .findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCase(
+                keyword, keyword
             );
-        }
+    }
 
+    // get Book by ID
+    @Transactional(readOnly = true)
+    public Book getBookById(Long id) {
+        return bookRepository.findById(id)
+            .orElseThrow(() -> new BookNotFoundException(id));
+    }
+
+    // Create Book
+    @Transactional
+    public Book createBook(BookRequest request) {
         Book book = new Book(
-            nextId++,
             request.title(),
             request.author(),
-            request.publicationYear(),
-            true
+            request.publicationYear()
         );
 
-        books.add(book);
+        return bookRepository.save(book);
+    }
 
-        return book;
+    // Update Book
+    @Transactional
+    public Book updateBook(Long id, BookRequest request) {
+        Book book = getBookById(id);
+
+        book.updateDetails(
+            request.title(),
+            request.author(),
+            request.publicationYear()
+        );
+
+        return bookRepository.save(book);
+    }
+
+    // Delete Book
+    @Transactional
+    public void deleteBook(Long id) {
+        Book book = getBookById(id);
+        bookRepository.delete(book);
     }
 }

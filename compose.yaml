@@ -1,0 +1,26 @@
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: library_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: library_db
+      POSTGRES_USER: library_user
+      POSTGRES_PASSWORD: ${LIBRARY_DB_PASSWORD:?Set LIBRARY_DB_PASSWORD in .env}
+
+    ports:
+      - "127.0.0.1:5545:5432"
+
+    volumes:
+      - library_pg_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U library_user -d library_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  library_pg_data:
