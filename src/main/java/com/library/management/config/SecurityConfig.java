@@ -81,9 +81,23 @@ public class SecurityConfig {
                 // Allow internal error dispatches so real HTTP error statuses (400, 404, 405, etc.) are returned
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/v3/api-docs",
+                    "/v3/api-docs/**",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**"
+                ).permitAll()
+
                 // Public login
                 .requestMatchers(
                     HttpMethod.POST, "/api/auth/login"
+                ).permitAll()
+
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/actuator/health",
+                    "/actuator/health/**"
                 ).permitAll()
 
                 // Public book catalog

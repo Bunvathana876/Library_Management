@@ -30,6 +30,45 @@
 		<java.version>21</java.version>
 	</properties>
 	<dependencies>
+	
+	<dependency>
+		<groupId>org.springdoc</groupId>
+		<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+		<version>3.2.1</version>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-actuator</artifactId>
+	</dependency>
+
+	<!-- Spring MVC integration testing -->
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-webmvc-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+
+	<!-- Spring Boot + Testcontainers integration -->
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-testcontainers</artifactId>
+		<scope>test</scope>
+	</dependency>
+
+	<!-- Temporary PostgreSQL containers -->
+	<dependency>
+		<groupId>org.testcontainers</groupId>
+		<artifactId>testcontainers-postgresql</artifactId>
+		<scope>test</scope>
+	</dependency>
+
+	<!-- JUnit support for Testcontainers -->
+	<dependency>
+		<groupId>org.testcontainers</groupId>
+		<artifactId>testcontainers-junit-jupiter</artifactId>
+		<scope>test</scope>
+	</dependency>
 
 		<!-- Spring Security -->
 		<dependency>

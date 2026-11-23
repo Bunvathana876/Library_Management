@@ -22,5 +22,36 @@ services:
       timeout: 5s
       retries: 10
 
+    
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: library_api
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/library_db
+      SPRING_DATASOURCE_USERNAME: library_user
+      SPRING_DATASOURCE_PASSWORD: ${LIBRARY_DB_PASSWORD:?Set database password}
+
+      LIBRARY_JWT_SECRET_BASE64: ${LIBRARY_JWT_SECRET_BASE64:?Set JWT secret}
+
+      LIBRARY_ADMIN_EMAIL: ${LIBRARY_ADMIN_EMAIL:?Set admin email}
+      LIBRARY_ADMIN_PASSWORD: ${LIBRARY_ADMIN_PASSWORD:?Set admin password}
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+
 volumes:
   library_pg_data:
+
