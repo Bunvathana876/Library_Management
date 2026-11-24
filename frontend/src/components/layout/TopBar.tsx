@@ -16,23 +16,23 @@ interface TopBarProps {
 const PAGE_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
   overview: {
     title: 'Library Overview',
-    subtitle: 'Real-time catalog inventory, circulation pulse, and quick actions',
+    subtitle: 'Collection inventory, circulation status, and quick actions',
   },
   books: {
     title: 'Books Catalog',
-    subtitle: 'Search, inspect, and manage volumes across the library shelf',
+    subtitle: 'Browse, filter, and manage titles in the collection',
   },
   loans: {
     title: 'Loans & Returns Desk',
-    subtitle: 'Track active checkouts, overdue alerts, and loan receipts',
+    subtitle: 'Active checkouts, overdue alerts, and loan lookup',
   },
   members: {
     title: 'Member Directory',
-    subtitle: 'Registered borrowers and active circulation load',
+    subtitle: 'Registered borrowers and active loan standing',
   },
   admin: {
     title: 'Staff & Account Provisioning',
-    subtitle: 'Create librarian and member login accounts and review role access',
+    subtitle: 'Create staff or member accounts and review role permissions',
   },
 };
 

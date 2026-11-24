@@ -24,6 +24,14 @@ import { OverviewPage } from '@/pages/OverviewPage';
 import type { Book, HealthResponse, LoanResponse, Member } from '@/types/api';
 import { formatApiErrorMessage } from '@/utils/errors';
 
+const TAB_PAGE_TITLES: Record<NavTab, string> = {
+  overview: 'Library Overview | Athenaeum',
+  books: 'Books Catalog | Athenaeum',
+  loans: 'Loans & Returns | Athenaeum',
+  members: 'Members | Athenaeum',
+  admin: 'Staff & Accounts | Athenaeum',
+};
+
 function LibraryWorkspace() {
   const { isStaff, signInModalOpen, closeSignInModal } = useAuth();
   const { notify } = useToast();
@@ -31,6 +39,10 @@ function LibraryWorkspace() {
   const [activeTab, setActiveTab] = useState<NavTab>('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const booksSearchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.title = TAB_PAGE_TITLES[activeTab];
+  }, [activeTab]);
 
   // Health state
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -268,6 +280,10 @@ function LibraryWorkspace() {
 
   return (
     <div className="app-shell">
+      <a href="#main-content" className="skip-link visually-hidden">
+        Skip to main content
+      </a>
+
       <Sidebar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
@@ -295,7 +311,7 @@ function LibraryWorkspace() {
           onOpenRegisterMember={() => setMemberModalOpen(true)}
         />
 
-        <main className="page-content">
+        <main id="main-content" tabIndex={-1} className="page-content">
           {activeTab === 'overview' ? (
             <OverviewPage
               books={books}

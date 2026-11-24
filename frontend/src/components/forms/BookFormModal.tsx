@@ -128,8 +128,8 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
       title={editingBook ? `Edit Book #${editingBook.id}` : 'Add New Volume'}
       subtitle={
         editingBook
-          ? 'Update title, author, or publication year in the Spring Boot catalog.'
-          : 'Register a new book volume in the library catalog.'
+          ? 'Update title, author, or publication year in the library catalog'
+          : 'Register a new book volume in the library catalog'
       }
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Calendar, Pencil, Repeat, Trash2, User } from 'lucide-react';
+import { Pencil, Repeat, Trash2 } from 'lucide-react';
 import { booksApi } from '@/api/booksApi';
 import { ModalDialog } from '@/components/ui/ModalDialog';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
@@ -62,7 +62,7 @@ export function BookDetailModal({
       open={bookId !== null}
       onClose={onClose}
       title={book ? book.title : `Book Record #${bookId ?? ''}`}
-      subtitle="Live details retrieved from GET /api/books/{id}"
+      subtitle="Catalog record details"
     >
       <div className="modal-body form-stack">
         {loading ? (
@@ -75,41 +75,34 @@ export function BookDetailModal({
           <>
             <div className="detail-plaque">
               <div className="queue-row-top">
-                <span className="badge badge-neutral mono">{formatCallNumber(book.id)}</span>
-                <span className="badge badge-neutral mono">ID #{book.id}</span>
+                <span className="catalog-id-badge mono">{formatCallNumber(book.id)}</span>
+                <span className="badge badge-neutral mono">Record #{book.id}</span>
               </div>
               <StatusBadge tone={book.available ? 'success' : 'warning'}>
                 {book.available ? 'Available for Checkout' : 'Currently Borrowed'}
               </StatusBadge>
             </div>
 
-            <div className="detail-meta-grid">
-              <div className="detail-meta-item" style={{ gridColumn: '1 / -1' }}>
-                <BookOpen size={17} aria-hidden="true" className="detail-meta-icon" />
-                <div>
-                  <div className="field-hint">Title</div>
-                  <div className="serif-display" style={{ fontSize: '1.15rem', fontWeight: 600 }}>
-                    {book.title}
-                  </div>
-                </div>
+            <dl className="detail-meta-list">
+              <div className="detail-meta-row">
+                <dt className="detail-meta-term">Author</dt>
+                <dd className="detail-meta-value">{book.author}</dd>
               </div>
-
-              <div className="detail-meta-item">
-                <User size={17} aria-hidden="true" className="detail-meta-icon" />
-                <div>
-                  <div className="field-hint">Author</div>
-                  <div className="queue-row-title">{book.author}</div>
-                </div>
+              <div className="detail-meta-row">
+                <dt className="detail-meta-term">Publication Year</dt>
+                <dd className="detail-meta-value tabular-nums">{book.publicationYear}</dd>
               </div>
-
-              <div className="detail-meta-item">
-                <Calendar size={17} aria-hidden="true" className="detail-meta-icon" />
-                <div>
-                  <div className="field-hint">Publication Year</div>
-                  <div className="tabular-nums queue-row-title">{book.publicationYear}</div>
-                </div>
+              <div className="detail-meta-row">
+                <dt className="detail-meta-term">Call Number</dt>
+                <dd className="detail-meta-value mono">{formatCallNumber(book.id)}</dd>
               </div>
-            </div>
+              <div className="detail-meta-row">
+                <dt className="detail-meta-term">Availability</dt>
+                <dd className="detail-meta-value">
+                  {book.available ? 'On shelf and ready to borrow' : 'Checked out by a member'}
+                </dd>
+              </div>
+            </dl>
           </>
         ) : null}
       </div>

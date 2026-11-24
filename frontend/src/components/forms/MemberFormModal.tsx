@@ -94,7 +94,7 @@ export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModal
       open={open}
       onClose={onClose}
       title="Register Library Member"
-      subtitle="Create a borrower profile so this member can check out books."
+      subtitle="Create a borrower profile so this member can check out books"
       size="sm"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>

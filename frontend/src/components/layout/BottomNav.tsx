@@ -36,7 +36,7 @@ export function BottomNav({ activeTab, onSelectTab, counts }: BottomNavProps) {
   ];
 
   return (
-    <nav className="bottom-nav" aria-label="Mobile quick navigation">
+    <nav className="bottom-nav" aria-label="Mobile quick">
       {items.map((item) => {
         const Icon = item.icon;
         const current = activeTab === item.id;

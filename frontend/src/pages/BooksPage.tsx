@@ -22,6 +22,7 @@ import { useAuth } from '@/context/AuthContext';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { BookGridSkeleton, TableSkeleton } from '@/components/ui/Skeleton';
 import type { Book } from '@/types/api';
+import { getBookCoverArtwork } from '@/utils/bookCovers';
 import { formatCallNumber } from '@/utils/formatting';
 
 interface BooksPageProps {
@@ -44,19 +45,6 @@ type SortOption = 'title-asc' | 'title-desc' | 'year-desc' | 'year-asc';
 type ViewMode = 'grid' | 'table';
 
 const PAGE_SIZE = 6;
-const COVER_PURPLE_MOUNTAINS = '/images/catalog/cover-purple-mountains.webp';
-const COVER_GREEN_FOREST = '/images/catalog/cover-green-forest.webp';
-
-function getBookCoverArtwork(book: Book): string {
-  const normalizedTitle = book.title.trim().toLowerCase();
-  if (normalizedTitle.includes('learning spring boot')) {
-    return COVER_PURPLE_MOUNTAINS;
-  }
-  if (normalizedTitle.includes('spring in action')) {
-    return COVER_GREEN_FOREST;
-  }
-  return book.id % 2 === 0 ? COVER_PURPLE_MOUNTAINS : COVER_GREEN_FOREST;
-}
 
 function getSortLabel(sortBy: SortOption): string {
   switch (sortBy) {
@@ -197,40 +185,21 @@ export function BooksPage({
 
       {/* Catalog Hero Banner */}
       <section className="catalog-hero" aria-label="Library catalog summary">
-        <svg
-          className="catalog-hero-curves"
-          viewBox="0 0 1200 260"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M640,0 C790,95 960,185 1200,115 L1200,0 Z"
-            fill="currentColor"
-            fillOpacity="0.065"
-          />
-          <path
-            d="M460,260 C680,145 920,160 1200,220 L1200,260 Z"
-            fill="currentColor"
-            fillOpacity="0.05"
-          />
-          <circle cx="1030" cy="48" r="140" fill="currentColor" fillOpacity="0.055" />
-        </svg>
-
         <div className="catalog-hero-content">
           <div className="catalog-hero-eyebrow">
-            <BookOpen size={15} strokeWidth={2} aria-hidden="true" />
+            <BookOpen size={15} aria-hidden="true" />
             <span>Library Catalog</span>
           </div>
 
           <h2 className="catalog-hero-title">Explore Our Collection</h2>
           <p className="catalog-hero-desc">
-            Browse, search, and discover books available in the library.
+            Browse, search, and discover books available in the library
           </p>
 
           <div className="catalog-hero-stats" aria-label="Catalog availability metrics">
             <div className="catalog-hero-stat">
               <span className="catalog-hero-stat-icon" aria-hidden="true">
-                <BookOpen size={16} strokeWidth={1.9} />
+                <BookOpen size={16} />
               </span>
               <div className="catalog-hero-stat-text">
                 <strong className="catalog-hero-stat-value tabular-nums">{totalBooks}</strong>
@@ -242,7 +211,7 @@ export function BooksPage({
 
             <div className="catalog-hero-stat">
               <span className="catalog-hero-stat-icon" aria-hidden="true">
-                <Layers size={16} strokeWidth={1.9} />
+                <Layers size={16} />
               </span>
               <div className="catalog-hero-stat-text">
                 <strong className="catalog-hero-stat-value tabular-nums">{availableCount}</strong>
@@ -254,7 +223,7 @@ export function BooksPage({
 
             <div className="catalog-hero-stat">
               <span className="catalog-hero-stat-icon" aria-hidden="true">
-                <RefreshCw size={16} strokeWidth={1.9} />
+                <RefreshCw size={16} />
               </span>
               <div className="catalog-hero-stat-text">
                 <strong className="catalog-hero-stat-value tabular-nums">{checkedOutCount}</strong>
@@ -280,14 +249,14 @@ export function BooksPage({
       {/* Search & Filter Toolbar */}
       <section className="card catalog-toolbar" aria-label="Catalog search and filters">
         <div className="catalog-search-wrap">
-          <Search size={16} strokeWidth={2} className="catalog-search-icon" aria-hidden="true" />
+          <Search size={16} className="catalog-search-icon" aria-hidden="true" />
           <input
             ref={searchInputRef}
             type="search"
             className="input-control catalog-search-input"
             enterKeyHint="search"
             aria-label="Search books by title, author, or catalog ID"
-            placeholder="Search books by title, author, or catalog ID..."
+            placeholder="Search by title, author, or CAT-ID"
             value={searchQuery}
             onChange={(e) => {
               onSearchChange(e.target.value);
@@ -304,7 +273,7 @@ export function BooksPage({
               }}
               aria-label="Clear search query"
             >
-              <X size={15} strokeWidth={2} aria-hidden="true" />
+              <X size={15} aria-hidden="true" />
             </button>
           ) : null}
         </div>
@@ -330,12 +299,7 @@ export function BooksPage({
               <option value="available">Available</option>
               <option value="borrowed">Borrowed</option>
             </select>
-            <ChevronDown
-              size={15}
-              strokeWidth={2}
-              className="catalog-select-chevron"
-              aria-hidden="true"
-            />
+            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-select-wrap">
@@ -365,12 +329,7 @@ export function BooksPage({
                 </option>
               ))}
             </select>
-            <ChevronDown
-              size={15}
-              strokeWidth={2}
-              className="catalog-select-chevron"
-              aria-hidden="true"
-            />
+            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-select-wrap">
@@ -394,12 +353,7 @@ export function BooksPage({
               <option value="year-desc">Newest publication year</option>
               <option value="year-asc">Oldest publication year</option>
             </select>
-            <ChevronDown
-              size={15}
-              strokeWidth={2}
-              className="catalog-select-chevron"
-              aria-hidden="true"
-            />
+            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-view-toggle" role="group" aria-label="Catalog view mode">
@@ -411,7 +365,7 @@ export function BooksPage({
               title="Grid view"
               onClick={() => setViewMode('grid')}
             >
-              <LayoutGrid size={16} strokeWidth={2} aria-hidden="true" />
+              <LayoutGrid size={16} aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -421,7 +375,7 @@ export function BooksPage({
               title="List view"
               onClick={() => setViewMode('table')}
             >
-              <List size={16} strokeWidth={2} aria-hidden="true" />
+              <List size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -460,7 +414,7 @@ export function BooksPage({
         )
       ) : filteredBooks.length === 0 ? (
         <EmptyState
-          icon={<BookOpen size={22} strokeWidth={1.9} />}
+          icon={<BookOpen size={22} />}
           title={
             books.length === 0
               ? 'Catalog is currently empty'
@@ -527,22 +481,12 @@ export function BooksPage({
 
                   <div className="catalog-card-meta">
                     <span className="catalog-meta-item">
-                      <Calendar
-                        size={14}
-                        strokeWidth={1.9}
-                        className="catalog-meta-icon"
-                        aria-hidden="true"
-                      />
+                      <Calendar size={14} className="catalog-meta-icon" aria-hidden="true" />
                       <span className="tabular-nums">{book.publicationYear}</span>
                     </span>
                     <span className="catalog-meta-sep" aria-hidden="true" />
                     <span className="catalog-meta-item">
-                      <Layers
-                        size={14}
-                        strokeWidth={1.9}
-                        className="catalog-meta-icon"
-                        aria-hidden="true"
-                      />
+                      <Layers size={14} className="catalog-meta-icon" aria-hidden="true" />
                       <span className="mono">Record #{book.id}</span>
                     </span>
                   </div>
@@ -553,9 +497,10 @@ export function BooksPage({
                 <button
                   type="button"
                   className="catalog-inspect-btn"
+                  aria-label={`Inspect ${book.title}`}
                   onClick={() => onInspectBook(book.id)}
                 >
-                  <Eye size={15} strokeWidth={1.9} aria-hidden="true" />
+                  <Eye size={15} aria-hidden="true" />
                   <span>Inspect</span>
                 </button>
 
@@ -566,6 +511,7 @@ export function BooksPage({
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
+                          aria-label={`Borrow ${book.title}`}
                           onClick={() => onBorrowBook(book)}
                         >
                           <Repeat size={14} aria-hidden="true" />
@@ -596,10 +542,11 @@ export function BooksPage({
                   <button
                     type="button"
                     className="catalog-details-btn"
+                    aria-label={`Details: ${book.title}`}
                     onClick={() => onInspectBook(book.id)}
                   >
                     <span>Details</span>
-                    <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+                    <ArrowRight size={14} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -611,9 +558,7 @@ export function BooksPage({
           <div className="card-header">
             <div>
               <h3 className="card-title">Catalog Table</h3>
-              <p className="card-subtitle">
-                Synchronized live inventory across all catalog attributes
-              </p>
+              <p className="card-subtitle">Tabular view of matching catalog records</p>
             </div>
           </div>
           <div
@@ -631,9 +576,7 @@ export function BooksPage({
                 ['--label-5' as string]: '"Actions"',
               }}
             >
-              <caption id={tableCaptionId}>
-                Library book inventory synchronized with /api/books
-              </caption>
+              <caption id={tableCaptionId}>Library book inventory</caption>
               <thead>
                 <tr>
                   <th scope="col">Title &amp; Call No.</th>
@@ -673,7 +616,7 @@ export function BooksPage({
                           className="btn btn-ghost btn-sm"
                           onClick={() => onInspectBook(book.id)}
                         >
-                          <Eye size={14} strokeWidth={1.9} aria-hidden="true" />
+                          <Eye size={14} aria-hidden="true" />
                           <span>Inspect</span>
                         </button>
                         {isStaff && book.available ? (
@@ -722,14 +665,14 @@ export function BooksPage({
             {filteredBooks.length === 1 ? '' : 's'}
           </p>
 
-          <nav className="catalog-pagination-nav" aria-label="Catalog pagination">
+          <nav className="catalog-pagination-nav" aria-label="Catalog pages">
             <button
               type="button"
               className="catalog-page-btn catalog-page-nav"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage(safePage - 1)}
             >
-              <ChevronLeft size={15} strokeWidth={2} aria-hidden="true" />
+              <ChevronLeft size={15} aria-hidden="true" />
               <span>Previous</span>
             </button>
 
@@ -755,7 +698,7 @@ export function BooksPage({
               onClick={() => setCurrentPage(safePage + 1)}
             >
               <span>Next</span>
-              <ChevronRight size={15} strokeWidth={2} aria-hidden="true" />
+              <ChevronRight size={15} aria-hidden="true" />
             </button>
           </nav>
         </footer>

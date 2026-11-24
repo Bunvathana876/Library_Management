@@ -57,8 +57,8 @@ export function AdminUsersPage() {
         title={isAuthenticated ? 'Administrator role required' : 'Admin sign-in required'}
         description={
           isAuthenticated
-            ? 'Only ADMIN accounts can provision new Librarian or Member logins via POST /api/admin/users.'
-            : 'Sign in with your administrator account to provision Librarian and Member login credentials.'
+            ? 'Only ADMIN accounts can create new Librarian or Member logins.'
+            : 'Sign in with your administrator account to create Librarian and Member login credentials.'
         }
         action={
           !isAuthenticated ? (
@@ -157,8 +157,7 @@ export function AdminUsersPage() {
             Create Login Account
           </h2>
           <p className="card-subtitle">
-            Provision new <code>LIBRARIAN</code> or <code>MEMBER</code> credentials via{' '}
-            <code>POST /api/admin/users</code>
+            Create login credentials for librarians and library members
           </p>
         </div>
 
@@ -177,7 +176,7 @@ export function AdminUsersPage() {
               Account email
             </label>
             <span id="admin-user-email-hint" className="field-hint">
-              Must be a unique email address for JWT sign-in.
+              Must be a unique email address for signing in
             </span>
             <input
               id="admin-user-email"
@@ -209,7 +208,7 @@ export function AdminUsersPage() {
               </label>
               <button
                 type="button"
-                className="btn btn-brass btn-sm"
+                className="btn btn-secondary btn-sm"
                 onClick={() => {
                   setPassword(generateStrongPassword());
                   setShowPassword(true);
@@ -221,7 +220,7 @@ export function AdminUsersPage() {
             </div>
             <ul id="admin-user-password-rules" className="rules-list">
               <li>Length between 12 and 72 characters ({password.length}/72 entered)</li>
-              <li>Stored hashed with BCrypt on the Spring Boot server</li>
+              <li>Passwords are encrypted before storage</li>
             </ul>
             <div className="input-with-action">
               <input
@@ -276,7 +275,7 @@ export function AdminUsersPage() {
           <div className="field">
             <span className="field-label">Assign role</span>
             <span className="field-hint">
-              Backend security prevents creating ADMIN accounts through this endpoint.
+              New accounts can be assigned the Librarian or Member role.
             </span>
             <div className="role-card-grid" role="radiogroup" aria-label="Account role">
               <button
@@ -309,7 +308,7 @@ export function AdminUsersPage() {
                   MEMBER
                 </span>
                 <span className="field-hint">
-                  Authenticated reader access to catalog &amp; personal JWT identity.
+                  Reader access to browse and inspect the catalog.
                 </span>
               </button>
             </div>
@@ -328,7 +327,7 @@ export function AdminUsersPage() {
           <div className="card-header">
             <div>
               <h3 className="card-title">Role Permissions Matrix</h3>
-              <p className="card-subtitle">Mirrors Spring Boot SecurityConfig rules</p>
+              <p className="card-subtitle">Permissions enforced for each account role</p>
             </div>
           </div>
           <div
@@ -338,7 +337,7 @@ export function AdminUsersPage() {
             className="table-wrapper table-compact"
           >
             <table className="data-table">
-              <caption id={matrixCaptionId}>Backend endpoint authorization by role</caption>
+              <caption id={matrixCaptionId}>Authorization matrix by user role</caption>
               <thead>
                 <tr>
                   <th scope="col">Role</th>
@@ -382,9 +381,7 @@ export function AdminUsersPage() {
             <h3 id="session-accounts-heading" className="card-title">
               Created in This Session
             </h3>
-            <p className="card-subtitle">
-              Accounts returned by <code>POST /api/admin/users</code>
-            </p>
+            <p className="card-subtitle">Accounts created during your current session</p>
           </div>
 
           {createdAccounts.length === 0 ? (

@@ -139,7 +139,7 @@ export function LoansPage({
             className="input-control"
             enterKeyHint="search"
             aria-label="Filter loans by book, member, or loan ID"
-            placeholder="Filter by book, member, or #ID…"
+            placeholder="Filter by book, member, or loan ID"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
           />
@@ -163,8 +163,7 @@ export function LoansPage({
               Loan Receipt Lookup
             </h2>
             <p className="card-subtitle">
-              Inspect any active or already-returned loan record by ID via{' '}
-              <code>GET /api/loans/&#123;id&#125;</code>
+              Look up any active or returned loan record by its loan ID
             </p>
           </div>
           <form onSubmit={handleLookup} className="lookup-form">
@@ -333,7 +332,7 @@ export function LoansPage({
                           <div
                             className="loan-progress-fill"
                             data-tone={loan.overdue ? 'danger' : pct >= 80 ? 'warning' : 'accent'}
-                            style={{ width: `${pct}%` }}
+                            style={{ transform: `scaleX(${pct / 100})` }}
                           />
                         </div>
                       </td>
@@ -346,6 +345,7 @@ export function LoansPage({
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
+                          aria-label={`Return Book: ${loan.bookTitle} (Loan #${loan.id})`}
                           onClick={() => onRequestReturnLoan(loan)}
                         >
                           Return Book

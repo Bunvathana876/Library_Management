@@ -80,7 +80,7 @@ export function MembersPage({
             className="input-control"
             enterKeyHint="search"
             aria-label="Search members by name, email, or ID"
-            placeholder="Search members by name, email, or #ID…"
+            placeholder="Search by name, email, or member ID"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -95,11 +95,6 @@ export function MembersPage({
             </button>
           ) : null}
         </div>
-
-        <button type="button" className="btn btn-primary btn-sm" onClick={onRegisterMember}>
-          <UserPlus size={15} aria-hidden="true" />
-          <span>Register Member</span>
-        </button>
       </section>
 
       {loading && members.length === 0 ? (
@@ -132,8 +127,7 @@ export function MembersPage({
             <div>
               <h2 className="card-title">Registered Borrowers</h2>
               <p className="card-subtitle">
-                {filteredMembers.length} member{filteredMembers.length === 1 ? '' : 's'} synchronized
-                with <code>/api/members</code>
+                {filteredMembers.length} registered borrower{filteredMembers.length === 1 ? '' : 's'}
               </p>
             </div>
           </div>
@@ -196,6 +190,7 @@ export function MembersPage({
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
+                          aria-label={`Borrow Book for ${member.fullName}`}
                           onClick={() => onBorrowForMember(member)}
                         >
                           <Repeat size={14} aria-hidden="true" />

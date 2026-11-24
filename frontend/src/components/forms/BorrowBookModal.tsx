@@ -117,7 +117,7 @@ export function BorrowBookModal({
       open={open}
       onClose={onClose}
       title="Issue New Book Loan"
-      subtitle="Checkout an available book to a registered library member (14-day loan period)."
+      subtitle="Checkout an available book to a registered library member (14-day loan period)"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
         <div className="modal-body form-stack">

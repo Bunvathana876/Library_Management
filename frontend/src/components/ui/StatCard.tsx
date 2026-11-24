@@ -5,20 +5,19 @@ interface StatCardProps {
   value: string | number;
   foot: string;
   icon: ReactNode;
-  watermark?: ReactNode;
   tone?: 'accent' | 'success' | 'warning' | 'danger' | 'info';
-  progress?: number;
   staggerIndex?: number;
 }
 
+/**
+ * KPI stat card matching the clean Athenaeum white surface language.
+ */
 export function StatCard({
   label,
   value,
   foot,
   icon,
-  watermark,
   tone = 'accent',
-  progress,
   staggerIndex = 0,
 }: StatCardProps) {
   return (
@@ -34,19 +33,7 @@ export function StatCard({
         </span>
       </div>
       <div className="kpi-value">{value}</div>
-      {typeof progress === 'number' ? (
-        <div className="kpi-progress-track" aria-hidden="true">
-          <div
-            className="kpi-progress-fill"
-            data-tone={tone}
-            style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
-          />
-        </div>
-      ) : null}
       <div className="kpi-foot">{foot}</div>
-      <span className="kpi-watermark" data-tone={tone} aria-hidden="true">
-        {watermark ?? icon}
-      </span>
     </article>
   );
 }
