@@ -1,0 +1,627 @@
+/* ==========================================================================
+   Athenaeum — Reference-Matched Design System Tokens
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* === QUICK THEME CUSTOMIZATION === */
+  --theme-primary: #633cff;
+  --theme-primary-deep: #4915e8;
+  --theme-primary-light: #ede8ff;
+  --theme-canvas-light: #f5f5fd;
+  --theme-card-light: #fcfcff;
+  --theme-border-light: #dfe1f2;
+  --theme-sidebar-top: #171d49;
+  --theme-sidebar-bottom: #29265f;
+  --theme-teal: #00b7a5;
+  --theme-green: #16b65c;
+  --theme-orange: #ff7900;
+  --theme-blue: #1684ff;
+  --theme-font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  --theme-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+
+  /* ------------------------------------------------------------------------
+     LAYER 1: PRIMITIVES & LAYOUT TARGET DIMENSIONS
+     ------------------------------------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --font-sans: var(--theme-font-sans);
+  --font-serif: var(--theme-font-sans);
+  --font-display: var(--theme-font-sans);
+  --font-mono: var(--theme-font-mono);
+
+  --text-xs: 0.75rem;       /* 12px */
+  --text-sm: 0.8125rem;     /* 13px */
+  --text-base: 0.9375rem;   /* 15px */
+  --text-md: 1.0625rem;     /* 17px */
+  --text-lg: 1.125rem;      /* 18px */
+  --text-xl: 1.375rem;      /* 22px */
+  --text-display: clamp(1.45rem, 2.05vw, 1.95rem);
+
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-card: 18px;
+  --radius-xl: 18px;
+  --radius-pill: 9999px;
+
+  --sidebar-width: 282px;
+  --topbar-height: 80px;
+  --bottom-nav-height: 66px;
+  --content-max-width: 1400px;
+
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ------------------------------------------------------------------------
+     LIGHT / DARK PALETTE PAIRS (WCAG AA CHECKED)
+     ------------------------------------------------------------------------ */
+  --bg-canvas-light: var(--theme-canvas-light);
+  --bg-surface-light: var(--theme-card-light);
+  --bg-surface-muted-light: #efeeFA;
+  --bg-surface-hover-light: #e5e3f7;
+  --border-subtle-light: var(--theme-border-light);
+  --border-strong-light: #c8cbe8;
+
+  --text-primary-light: #111332;
+  --text-secondary-light: #555d80;
+  --text-muted-light: #697196;
+
+  --accent-light: var(--theme-primary);
+  --accent-hover-light: var(--theme-primary-deep);
+  --accent-text-light: #ffffff;
+  --accent-soft-light: var(--theme-primary-light);
+  --accent-ring-light: rgb(99 60 255 / 0.24);
+
+  --teal-light: #008275;
+  --teal-bright-light: var(--theme-teal);
+  --teal-soft-light: #e6faf6;
+  --teal-border-light: #b6efe6;
+
+  --brass-light: var(--theme-primary-deep);
+  --brass-hover-light: #3c0fd1;
+  --brass-soft-light: #ede8ff;
+  --brass-border-light: #d7ccff;
+
+  --success-light: #0e8a44;
+  --success-bright-light: var(--theme-green);
+  --success-soft-light: #eafbf1;
+  --success-border-light: #bcefd1;
+
+  --warning-light: #bd5500;
+  --warning-bright-light: var(--theme-orange);
+  --warning-soft-light: #fff3eb;
+  --warning-border-light: #ffd8bd;
+
+  --danger-light: #c81e3a;
+  --danger-soft-light: #fef0f3;
+  --danger-border-light: #fecdd6;
+
+  --info-light: #1064cc;
+  --info-bright-light: var(--theme-blue);
+  --info-soft-light: #ebf3ff;
+  --info-border-light: #c8dfff;
+
+  /* Hero Banner Light */
+  --hero-start-light: #e8e4ff;
+  --hero-mid-light: #e5ebfc;
+  --hero-end-light: #c9d5ff;
+  --hero-border-light: #d7d2f7;
+
+  /* Books Catalog Scoped Light Tokens */
+  --catalog-hero-start-light: #f0ecfc;
+  --catalog-hero-mid-light: #e5dffc;
+  --catalog-hero-end-light: #d5cffc;
+  --catalog-hero-border-light: #dbd3f8;
+  --catalog-available-bg-light: #d1f5df;
+  --catalog-available-fg-light: #067a36;
+  --catalog-available-dot-light: #079b45;
+  --catalog-available-border-light: #a8e8c1;
+
+  /* Pastel KPI Card Light Surfaces & Borders */
+  --kpi-bg-accent-light: #f2eeff;
+  --kpi-border-accent-light: #dfd7ff;
+  --kpi-icon-bg-accent-light: #e6ddff;
+  --kpi-icon-fg-accent-light: #633cff;
+
+  --kpi-bg-success-light: #e9fbf5;
+  --kpi-border-success-light: #c5f1e4;
+  --kpi-icon-bg-success-light: #d4f6eb;
+  --kpi-icon-fg-success-light: #00998a;
+
+  --kpi-bg-warning-light: #fff3eb;
+  --kpi-border-warning-light: #ffe0ca;
+  --kpi-icon-bg-warning-light: #ffe7d4;
+  --kpi-icon-fg-warning-light: #ff7900;
+
+  --kpi-bg-info-light: #eef4ff;
+  --kpi-border-info-light: #d4e3ff;
+  --kpi-icon-bg-info-light: #dceaff;
+  --kpi-icon-fg-info-light: #1684ff;
+
+  --kpi-bg-danger-light: #fff0f3;
+  --kpi-border-danger-light: #ffd0da;
+  --kpi-icon-bg-danger-light: #ffe0e7;
+  --kpi-icon-fg-danger-light: #dc2626;
+
+  --donut-track-light: #ede9ff;
+  --access-panel-bg-light: #f3efff;
+  --access-panel-border-light: #dfd7ff;
+
+  --scrollbar-track-light: #eeeef9;
+  --scrollbar-thumb-light: #b2b6d9;
+
+  --shadow-sm-light: 0 2px 8px -2px rgb(17 19 50 / 0.04), 0 1px 2px rgb(17 19 50 / 0.03);
+  --shadow-md-light: 0 10px 24px -8px rgb(23 29 73 / 0.1), 0 2px 6px -2px rgb(23 29 73 / 0.04);
+  --shadow-lg-light: 0 24px 48px -12px rgb(17 19 50 / 0.18);
+
+  /* Dark Navy & Purple Sidebar Stops */
+  --sidebar-top-light: var(--theme-sidebar-top);
+  --sidebar-mid-light: #202154;
+  --sidebar-bottom-light: var(--theme-sidebar-bottom);
+  --sidebar-border-light: rgb(255 255 255 / 0.1);
+  --sidebar-text-light: #ffffff;
+  --sidebar-text-secondary-light: rgb(235 237 255 / 0.82);
+  --sidebar-text-muted-light: rgb(198 202 238 / 0.68);
+  --sidebar-hover-bg-light: rgb(255 255 255 / 0.09);
+  --sidebar-panel-bg-light: rgb(255 255 255 / 0.07);
+  --sidebar-panel-border-light: rgb(255 255 255 / 0.12);
+
+  /* Dark Mode Palette */
+  --bg-canvas-dark: #0e1026;
+  --bg-surface-dark: #161838;
+  --bg-surface-muted-dark: #1f224d;
+  --bg-surface-hover-dark: #2a2e61;
+  --border-subtle-dark: #282c59;
+  --border-strong-dark: #3c417a;
+
+  --text-primary-dark: #f4f5ff;
+  --text-secondary-dark: #c8cce8;
+  --text-muted-dark: #979dc4;
+
+  --accent-dark: #9b82ff;
+  --accent-hover-dark: #b4a1ff;
+  --accent-text-dark: #111332;
+  --accent-soft-dark: rgb(99 60 255 / 0.18);
+  --accent-ring-dark: rgb(155 130 255 / 0.34);
+
+  --teal-dark: #2dd4bf;
+  --teal-bright-dark: #00b7a5;
+  --teal-soft-dark: rgb(0 183 165 / 0.16);
+  --teal-border-dark: rgb(45 212 191 / 0.32);
+
+  --brass-dark: #c4b5fd;
+  --brass-hover-dark: #ddd6fe;
+  --brass-soft-dark: rgb(155 130 255 / 0.16);
+  --brass-border-dark: rgb(196 181 253 / 0.34);
+
+  --success-dark: #34d399;
+  --success-bright-dark: #16b65c;
+  --success-soft-dark: rgb(22 182 92 / 0.16);
+  --success-border-dark: rgb(52 211 153 / 0.34);
+
+  --warning-dark: #fbbf24;
+  --warning-bright-dark: #ff7900;
+  --warning-soft-dark: rgb(255 121 0 / 0.16);
+  --warning-border-dark: rgb(251 191 36 / 0.34);
+
+  --danger-dark: #fb7185;
+  --danger-soft-dark: rgb(244 63 94 / 0.18);
+  --danger-border-dark: rgb(251 113 133 / 0.36);
+
+  --info-dark: #60a5fa;
+  --info-bright-dark: #1684ff;
+  --info-soft-dark: rgb(22 132 255 / 0.18);
+  --info-border-dark: rgb(96 165 250 / 0.34);
+
+  --hero-start-dark: #211f54;
+  --hero-mid-dark: #1f2559;
+  --hero-end-dark: #28306e;
+  --hero-border-dark: #373c7d;
+
+  /* Books Catalog Scoped Dark Tokens */
+  --catalog-hero-start-dark: #211d52;
+  --catalog-hero-mid-dark: #25205e;
+  --catalog-hero-end-dark: #2c266d;
+  --catalog-hero-border-dark: #3d3685;
+  --catalog-available-bg-dark: rgb(7 155 69 / 0.22);
+  --catalog-available-fg-dark: #4ade80;
+  --catalog-available-dot-dark: #22c55e;
+  --catalog-available-border-dark: rgb(74 222 128 / 0.34);
+
+  --kpi-bg-accent-dark: #1d1a46;
+  --kpi-border-accent-dark: #373178;
+  --kpi-icon-bg-accent-dark: rgb(99 60 255 / 0.24);
+  --kpi-icon-fg-accent-dark: #b39dff;
+
+  --kpi-bg-success-dark: #112a2e;
+  --kpi-border-success-dark: #1d4f52;
+  --kpi-icon-bg-success-dark: rgb(0 183 165 / 0.2);
+  --kpi-icon-fg-success-dark: #2dd4bf;
+
+  --kpi-bg-warning-dark: #2b1f22;
+  --kpi-border-warning-dark: #5c372d;
+  --kpi-icon-bg-warning-dark: rgb(255 121 0 / 0.22);
+  --kpi-icon-fg-warning-dark: #ffa24d;
+
+  --kpi-bg-info-dark: #15234a;
+  --kpi-border-info-dark: #274082;
+  --kpi-icon-bg-info-dark: rgb(22 132 255 / 0.22);
+  --kpi-icon-fg-info-dark: #68b0ff;
+
+  --kpi-bg-danger-dark: #2e1727;
+  --kpi-border-danger-dark: #612640;
+  --kpi-icon-bg-danger-dark: rgb(244 63 94 / 0.24);
+  --kpi-icon-fg-danger-dark: #fda4af;
+
+  --donut-track-dark: #262957;
+  --access-panel-bg-dark: rgb(99 60 255 / 0.14);
+  --access-panel-border-dark: rgb(155 130 255 / 0.28);
+
+  --scrollbar-track-dark: #121430;
+  --scrollbar-thumb-dark: #3b4075;
+
+  --shadow-sm-dark: 0 2px 8px -2px rgb(0 0 0 / 0.34), 0 1px 2px rgb(0 0 0 / 0.2);
+  --shadow-md-dark: 0 12px 28px -8px rgb(0 0 0 / 0.48), 0 3px 8px -2px rgb(0 0 0 / 0.28);
+  --shadow-lg-dark: 0 24px 48px -12px rgb(0 0 0 / 0.65);
+
+  --sidebar-top-dark: #12163b;
+  --sidebar-mid-dark: #181948;
+  --sidebar-bottom-dark: #201d50;
+  --sidebar-border-dark: rgb(255 255 255 / 0.09);
+  --sidebar-text-dark: #ffffff;
+  --sidebar-text-secondary-dark: rgb(230 233 255 / 0.8);
+  --sidebar-text-muted-dark: rgb(184 189 230 / 0.66);
+  --sidebar-hover-bg-dark: rgb(255 255 255 / 0.08);
+  --sidebar-panel-bg-dark: rgb(255 255 255 / 0.06);
+  --sidebar-panel-border-dark: rgb(255 255 255 / 0.11);
+
+  /* ------------------------------------------------------------------------
+     LAYER 2: SEMANTIC TOKENS
+     ------------------------------------------------------------------------ */
+  --bg-canvas: var(--bg-canvas-light);
+  --bg-surface: var(--bg-surface-light);
+  --bg-surface-muted: var(--bg-surface-muted-light);
+  --bg-surface-hover: var(--bg-surface-hover-light);
+  --border-subtle: var(--border-subtle-light);
+  --border-strong: var(--border-strong-light);
+
+  --text-primary: var(--text-primary-light);
+  --text-secondary: var(--text-secondary-light);
+  --text-muted: var(--text-muted-light);
+
+  --accent: var(--accent-light);
+  --accent-hover: var(--accent-hover-light);
+  --accent-text: var(--accent-text-light);
+  --accent-soft: var(--accent-soft-light);
+  --accent-ring: var(--accent-ring-light);
+
+  --teal: var(--teal-light);
+  --teal-bright: var(--teal-bright-light);
+  --teal-soft: var(--teal-soft-light);
+  --teal-border: var(--teal-border-light);
+
+  --brass: var(--brass-light);
+  --brass-hover: var(--brass-hover-light);
+  --brass-soft: var(--brass-soft-light);
+  --brass-border: var(--brass-border-light);
+
+  --success: var(--success-light);
+  --success-bright: var(--success-bright-light);
+  --success-soft: var(--success-soft-light);
+  --success-border: var(--success-border-light);
+
+  --warning: var(--warning-light);
+  --warning-bright: var(--warning-bright-light);
+  --warning-soft: var(--warning-soft-light);
+  --warning-border: var(--warning-border-light);
+
+  --danger: var(--danger-light);
+  --danger-soft: var(--danger-soft-light);
+  --danger-border: var(--danger-border-light);
+
+  --info: var(--info-light);
+  --info-bright: var(--info-bright-light);
+  --info-soft: var(--info-soft-light);
+  --info-border: var(--info-border-light);
+
+  --hero-start: var(--hero-start-light);
+  --hero-mid: var(--hero-mid-light);
+  --hero-end: var(--hero-end-light);
+  --hero-border: var(--hero-border-light);
+
+  --catalog-hero-start: var(--catalog-hero-start-light);
+  --catalog-hero-mid: var(--catalog-hero-mid-light);
+  --catalog-hero-end: var(--catalog-hero-end-light);
+  --catalog-hero-border: var(--catalog-hero-border-light);
+  --catalog-available-bg: var(--catalog-available-bg-light);
+  --catalog-available-fg: var(--catalog-available-fg-light);
+  --catalog-available-dot: var(--catalog-available-dot-light);
+  --catalog-available-border: var(--catalog-available-border-light);
+
+  --kpi-bg-accent: var(--kpi-bg-accent-light);
+  --kpi-border-accent: var(--kpi-border-accent-light);
+  --kpi-icon-bg-accent: var(--kpi-icon-bg-accent-light);
+  --kpi-icon-fg-accent: var(--kpi-icon-fg-accent-light);
+
+  --kpi-bg-success: var(--kpi-bg-success-light);
+  --kpi-border-success: var(--kpi-border-success-light);
+  --kpi-icon-bg-success: var(--kpi-icon-bg-success-light);
+  --kpi-icon-fg-success: var(--kpi-icon-fg-success-light);
+
+  --kpi-bg-warning: var(--kpi-bg-warning-light);
+  --kpi-border-warning: var(--kpi-border-warning-light);
+  --kpi-icon-bg-warning: var(--kpi-icon-bg-warning-light);
+  --kpi-icon-fg-warning: var(--kpi-icon-fg-warning-light);
+
+  --kpi-bg-info: var(--kpi-bg-info-light);
+  --kpi-border-info: var(--kpi-border-info-light);
+  --kpi-icon-bg-info: var(--kpi-icon-bg-info-light);
+  --kpi-icon-fg-info: var(--kpi-icon-fg-info-light);
+
+  --kpi-bg-danger: var(--kpi-bg-danger-light);
+  --kpi-border-danger: var(--kpi-border-danger-light);
+  --kpi-icon-bg-danger: var(--kpi-icon-bg-danger-light);
+  --kpi-icon-fg-danger: var(--kpi-icon-fg-danger-light);
+
+  --donut-track: var(--donut-track-light);
+  --access-panel-bg: var(--access-panel-bg-light);
+  --access-panel-border: var(--access-panel-border-light);
+
+  --scrollbar-track: var(--scrollbar-track-light);
+  --scrollbar-thumb: var(--scrollbar-thumb-light);
+
+  --shadow-sm: var(--shadow-sm-light);
+  --shadow-md: var(--shadow-md-light);
+  --shadow-lg: var(--shadow-lg-light);
+
+  --sidebar-top: var(--sidebar-top-light);
+  --sidebar-mid: var(--sidebar-mid-light);
+  --sidebar-bottom: var(--sidebar-bottom-light);
+  --sidebar-border: var(--sidebar-border-light);
+  --sidebar-text: var(--sidebar-text-light);
+  --sidebar-text-secondary: var(--sidebar-text-secondary-light);
+  --sidebar-text-muted: var(--sidebar-text-muted-light);
+  --sidebar-hover-bg: var(--sidebar-hover-bg-light);
+  --sidebar-panel-bg: var(--sidebar-panel-bg-light);
+  --sidebar-panel-border: var(--sidebar-panel-border-light);
+
+  /* Decorative Book Spine & Mini-Cover Accents */
+  --spine-1: #633cff;
+  --spine-2: #00b7a5;
+  --spine-3: #1684ff;
+  --spine-4: #ff7900;
+  --spine-5: #16b65c;
+  --spine-6: #4915e8;
+
+  @supports (color: light-dark(white, black)) {
+    --bg-canvas: light-dark(var(--bg-canvas-light), var(--bg-canvas-dark));
+    --bg-surface: light-dark(var(--bg-surface-light), var(--bg-surface-dark));
+    --bg-surface-muted: light-dark(var(--bg-surface-muted-light), var(--bg-surface-muted-dark));
+    --bg-surface-hover: light-dark(var(--bg-surface-hover-light), var(--bg-surface-hover-dark));
+    --border-subtle: light-dark(var(--border-subtle-light), var(--border-subtle-dark));
+    --border-strong: light-dark(var(--border-strong-light), var(--border-strong-dark));
+
+    --text-primary: light-dark(var(--text-primary-light), var(--text-primary-dark));
+    --text-secondary: light-dark(var(--text-secondary-light), var(--text-secondary-dark));
+    --text-muted: light-dark(var(--text-muted-light), var(--text-muted-dark));
+
+    --accent: light-dark(var(--accent-light), var(--accent-dark));
+    --accent-hover: light-dark(var(--accent-hover-light), var(--accent-hover-dark));
+    --accent-text: light-dark(var(--accent-text-light), var(--accent-text-dark));
+    --accent-soft: light-dark(var(--accent-soft-light), var(--accent-soft-dark));
+    --accent-ring: light-dark(var(--accent-ring-light), var(--accent-ring-dark));
+
+    --teal: light-dark(var(--teal-light), var(--teal-dark));
+    --teal-bright: light-dark(var(--teal-bright-light), var(--teal-bright-dark));
+    --teal-soft: light-dark(var(--teal-soft-light), var(--teal-soft-dark));
+    --teal-border: light-dark(var(--teal-border-light), var(--teal-border-dark));
+
+    --brass: light-dark(var(--brass-light), var(--brass-dark));
+    --brass-hover: light-dark(var(--brass-hover-light), var(--brass-hover-dark));
+    --brass-soft: light-dark(var(--brass-soft-light), var(--brass-soft-dark));
+    --brass-border: light-dark(var(--brass-border-light), var(--brass-border-dark));
+
+    --success: light-dark(var(--success-light), var(--success-dark));
+    --success-bright: light-dark(var(--success-bright-light), var(--success-bright-dark));
+    --success-soft: light-dark(var(--success-soft-light), var(--success-soft-dark));
+    --success-border: light-dark(var(--success-border-light), var(--success-border-dark));
+
+    --warning: light-dark(var(--warning-light), var(--warning-dark));
+    --warning-bright: light-dark(var(--warning-bright-light), var(--warning-bright-dark));
+    --warning-soft: light-dark(var(--warning-soft-light), var(--warning-soft-dark));
+    --warning-border: light-dark(var(--warning-border-light), var(--warning-border-dark));
+
+    --danger: light-dark(var(--danger-light), var(--danger-dark));
+    --danger-soft: light-dark(var(--danger-soft-light), var(--danger-soft-dark));
+    --danger-border: light-dark(var(--danger-border-light), var(--danger-border-dark));
+
+    --info: light-dark(var(--info-light), var(--info-dark));
+    --info-bright: light-dark(var(--info-bright-light), var(--info-bright-dark));
+    --info-soft: light-dark(var(--info-soft-light), var(--info-soft-dark));
+    --info-border: light-dark(var(--info-border-light), var(--info-border-dark));
+
+    --hero-start: light-dark(var(--hero-start-light), var(--hero-start-dark));
+    --hero-mid: light-dark(var(--hero-mid-light), var(--hero-mid-dark));
+    --hero-end: light-dark(var(--hero-end-light), var(--hero-end-dark));
+    --hero-border: light-dark(var(--hero-border-light), var(--hero-border-dark));
+
+    --catalog-hero-start: light-dark(
+      var(--catalog-hero-start-light),
+      var(--catalog-hero-start-dark)
+    );
+    --catalog-hero-mid: light-dark(var(--catalog-hero-mid-light), var(--catalog-hero-mid-dark));
+    --catalog-hero-end: light-dark(var(--catalog-hero-end-light), var(--catalog-hero-end-dark));
+    --catalog-hero-border: light-dark(
+      var(--catalog-hero-border-light),
+      var(--catalog-hero-border-dark)
+    );
+    --catalog-available-bg: light-dark(
+      var(--catalog-available-bg-light),
+      var(--catalog-available-bg-dark)
+    );
+    --catalog-available-fg: light-dark(
+      var(--catalog-available-fg-light),
+      var(--catalog-available-fg-dark)
+    );
+    --catalog-available-dot: light-dark(
+      var(--catalog-available-dot-light),
+      var(--catalog-available-dot-dark)
+    );
+    --catalog-available-border: light-dark(
+      var(--catalog-available-border-light),
+      var(--catalog-available-border-dark)
+    );
+
+    --kpi-bg-accent: light-dark(var(--kpi-bg-accent-light), var(--kpi-bg-accent-dark));
+    --kpi-border-accent: light-dark(var(--kpi-border-accent-light), var(--kpi-border-accent-dark));
+    --kpi-icon-bg-accent: light-dark(var(--kpi-icon-bg-accent-light), var(--kpi-icon-bg-accent-dark));
+    --kpi-icon-fg-accent: light-dark(var(--kpi-icon-fg-accent-light), var(--kpi-icon-fg-accent-dark));
+
+    --kpi-bg-success: light-dark(var(--kpi-bg-success-light), var(--kpi-bg-success-dark));
+    --kpi-border-success: light-dark(var(--kpi-border-success-light), var(--kpi-border-success-dark));
+    --kpi-icon-bg-success: light-dark(
+      var(--kpi-icon-bg-success-light),
+      var(--kpi-icon-bg-success-dark)
+    );
+    --kpi-icon-fg-success: light-dark(
+      var(--kpi-icon-fg-success-light),
+      var(--kpi-icon-fg-success-dark)
+    );
+
+    --kpi-bg-warning: light-dark(var(--kpi-bg-warning-light), var(--kpi-bg-warning-dark));
+    --kpi-border-warning: light-dark(var(--kpi-border-warning-light), var(--kpi-border-warning-dark));
+    --kpi-icon-bg-warning: light-dark(
+      var(--kpi-icon-bg-warning-light),
+      var(--kpi-icon-bg-warning-dark)
+    );
+    --kpi-icon-fg-warning: light-dark(
+      var(--kpi-icon-fg-warning-light),
+      var(--kpi-icon-fg-warning-dark)
+    );
+
+    --kpi-bg-info: light-dark(var(--kpi-bg-info-light), var(--kpi-bg-info-dark));
+    --kpi-border-info: light-dark(var(--kpi-border-info-light), var(--kpi-border-info-dark));
+    --kpi-icon-bg-info: light-dark(var(--kpi-icon-bg-info-light), var(--kpi-icon-bg-info-dark));
+    --kpi-icon-fg-info: light-dark(var(--kpi-icon-fg-info-light), var(--kpi-icon-fg-info-dark));
+
+    --kpi-bg-danger: light-dark(var(--kpi-bg-danger-light), var(--kpi-bg-danger-dark));
+    --kpi-border-danger: light-dark(var(--kpi-border-danger-light), var(--kpi-border-danger-dark));
+    --kpi-icon-bg-danger: light-dark(var(--kpi-icon-bg-danger-light), var(--kpi-icon-bg-danger-dark));
+    --kpi-icon-fg-danger: light-dark(var(--kpi-icon-fg-danger-light), var(--kpi-icon-fg-danger-dark));
+
+    --donut-track: light-dark(var(--donut-track-light), var(--donut-track-dark));
+    --access-panel-bg: light-dark(var(--access-panel-bg-light), var(--access-panel-bg-dark));
+    --access-panel-border: light-dark(
+      var(--access-panel-border-light),
+      var(--access-panel-border-dark)
+    );
+
+    --scrollbar-track: light-dark(var(--scrollbar-track-light), var(--scrollbar-track-dark));
+    --scrollbar-thumb: light-dark(var(--scrollbar-thumb-light), var(--scrollbar-thumb-dark));
+
+    --shadow-sm: light-dark(var(--shadow-sm-light), var(--shadow-sm-dark));
+    --shadow-md: light-dark(var(--shadow-md-light), var(--shadow-md-dark));
+    --shadow-lg: light-dark(var(--shadow-lg-light), var(--shadow-lg-dark));
+
+    --sidebar-top: light-dark(var(--sidebar-top-light), var(--sidebar-top-dark));
+    --sidebar-mid: light-dark(var(--sidebar-mid-light), var(--sidebar-mid-dark));
+    --sidebar-bottom: light-dark(var(--sidebar-bottom-light), var(--sidebar-bottom-dark));
+    --sidebar-border: light-dark(var(--sidebar-border-light), var(--sidebar-border-dark));
+    --sidebar-text: light-dark(var(--sidebar-text-light), var(--sidebar-text-dark));
+    --sidebar-text-secondary: light-dark(
+      var(--sidebar-text-secondary-light),
+      var(--sidebar-text-secondary-dark)
+    );
+    --sidebar-text-muted: light-dark(
+      var(--sidebar-text-muted-light),
+      var(--sidebar-text-muted-dark)
+    );
+    --sidebar-hover-bg: light-dark(var(--sidebar-hover-bg-light), var(--sidebar-hover-bg-dark));
+    --sidebar-panel-bg: light-dark(var(--sidebar-panel-bg-light), var(--sidebar-panel-bg-dark));
+    --sidebar-panel-border: light-dark(
+      var(--sidebar-panel-border-light),
+      var(--sidebar-panel-border-dark)
+    );
+  }
+
+  /* Reflect <meta name="color-scheme"> override onto CSS color-scheme */
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+  }
+
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+  }
+
+  /* Composed Gradients */
+  --sidebar-bg: linear-gradient(
+    180deg,
+    var(--sidebar-top) 0%,
+    var(--sidebar-mid) 54%,
+    var(--sidebar-bottom) 100%
+  );
+  --sidebar-active-bg: linear-gradient(90deg, #633cff 0%, #4915e8 100%);
+  --sidebar-signin-bg: linear-gradient(95deg, #d93b8a 0%, #734bff 54%, #2b78eb 100%);
+  --sidebar-signin-bg-hover: linear-gradient(95deg, #c6317b 0%, #6139f2 54%, #2167d6 100%);
+  --hero-bg: linear-gradient(120deg, var(--hero-start) 0%, var(--hero-mid) 55%, var(--hero-end) 100%);
+  --catalog-hero-bg: linear-gradient(
+    120deg,
+    var(--catalog-hero-start) 0%,
+    var(--catalog-hero-mid) 55%,
+    var(--catalog-hero-end) 100%
+  );
+  --btn-primary-bg: linear-gradient(135deg, #633cff 0%, #4915e8 100%);
+  --btn-primary-bg-hover: linear-gradient(135deg, #5630f5 0%, #3f10cf 100%);
+
+  /* ------------------------------------------------------------------------
+     LAYER 3: COMPONENT TOKENS
+     ------------------------------------------------------------------------ */
+  --card-bg: var(--bg-surface);
+  --card-border: var(--border-subtle);
+  --card-radius: var(--radius-card);
+  --card-padding: var(--space-5);
+
+  --btn-radius: var(--radius-md);
+  --btn-height: 2.5rem;      /* 40px */
+  --btn-height-sm: 2.125rem; /* 34px */
+
+  --input-bg: var(--bg-surface);
+  --input-border: var(--border-strong);
+  --input-radius: var(--radius-sm);
+  --input-height: 2.625rem;  /* 42px */
+
+  --modal-bg: var(--bg-surface);
+  --modal-radius: var(--radius-lg);
+
+  accent-color: var(--accent);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-pill);
+  }
+}
