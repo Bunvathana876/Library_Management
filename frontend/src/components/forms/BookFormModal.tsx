@@ -85,6 +85,9 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
   const [publicationYear, setPublicationYear] = useState(defaultYearRef.current);
   const [publisher, setPublisher] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
+  const [category, setCategory] = useState('');
+  const [shelfLocation, setShelfLocation] = useState('');
+  const [initialCopies, setInitialCopies] = useState('1');
 
   const [lookupStatus, setLookupStatus] = useState<LookupStatus>('idle');
   const [lookupMessage, setLookupMessage] = useState('');
@@ -150,6 +153,9 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
     setPublicationYear(editingBook ? String(editingBook.publicationYear) : currentYear);
     setPublisher(editingBook?.publisher ?? '');
     setCoverUrl(editingBook?.coverUrl ?? '');
+    setCategory(editingBook?.category ?? '');
+    setShelfLocation(editingBook?.shelfLocation ?? '');
+    setInitialCopies('1');
 
     setLookupStatus('idle');
     setLookupMessage('');
@@ -509,6 +515,9 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
     setFieldErrors({});
 
     try {
+      const parsedCopies = Number.parseInt(initialCopies, 10);
+      const trimmedCategory = category.trim();
+      const trimmedShelf = shelfLocation.trim();
       const payload = {
         title: title.trim(),
         author: author.trim(),
@@ -516,6 +525,11 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
         isbn: normalizedIsbn || null,
         publisher: publisher.trim() || null,
         coverUrl: isSafeCoverUrl(trimmedCover) ?? null,
+        ...(trimmedCategory ? { category: trimmedCategory } : {}),
+        ...(trimmedShelf ? { shelfLocation: trimmedShelf } : {}),
+        ...(!editingBook && Number.isFinite(parsedCopies) && parsedCopies > 1
+          ? { initialCopies: Math.min(50, Math.max(1, parsedCopies)) }
+          : {}),
       };
 
       const saved = editingBook
@@ -881,6 +895,84 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
               </div>
             </div>
           </div>
+
+          <div className="form-grid-2">
+            <div className="field">
+              <label className="field-label" htmlFor="book-category">
+                Category / Genre
+              </label>
+              <span id="book-category-hint" className="field-hint">
+                Optional shelf classification (up to 80 characters).
+              </span>
+              <input
+                id="book-category"
+                name="category"
+                type="text"
+                list="book-category-presets"
+                className="input-control"
+                maxLength={80}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                aria-describedby="book-category-hint"
+                placeholder="Computer Science"
+              />
+              <datalist id="book-category-presets">
+                <option value="Computer Science" />
+                <option value="Fiction" />
+                <option value="Science & Math" />
+                <option value="History" />
+                <option value="Biography" />
+                <option value="Business & Economics" />
+                <option value="Philosophy" />
+                <option value="Reference" />
+              </datalist>
+            </div>
+
+            <div className="field">
+              <label className="field-label" htmlFor="book-shelf-location">
+                Shelf Location
+              </label>
+              <span id="book-shelf-location-hint" className="field-hint">
+                Aisle / bay code (e.g. CS-204).
+              </span>
+              <input
+                id="book-shelf-location"
+                name="shelfLocation"
+                type="text"
+                className="input-control mono"
+                maxLength={60}
+                value={shelfLocation}
+                onChange={(e) => setShelfLocation(e.target.value)}
+                aria-describedby="book-shelf-location-hint"
+                placeholder="CS-204"
+              />
+            </div>
+          </div>
+
+          {!editingBook ? (
+            <div className="field">
+              <label className="field-label" htmlFor="book-initial-copies">
+                Initial Physical Copies
+              </label>
+              <span id="book-initial-copies-hint" className="field-hint">
+                Number of scannable barcoded copies (`CPY-xxxx-01`…) created for this title (1–50).
+              </span>
+              <input
+                id="book-initial-copies"
+                name="initialCopies"
+                type="number"
+                className="input-control"
+                inputMode="numeric"
+                min={1}
+                max={50}
+                step={1}
+                value={initialCopies}
+                onChange={(e) => setInitialCopies(e.target.value)}
+                aria-describedby="book-initial-copies-hint"
+                style={{ maxWidth: '140px' }}
+              />
+            </div>
+          ) : null}
 
           <details className="isbn-cover-disclosure">
             <summary>Cover artwork URL (optional)</summary>

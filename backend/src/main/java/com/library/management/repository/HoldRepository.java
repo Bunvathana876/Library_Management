@@ -32,6 +32,18 @@ public interface HoldRepository extends JpaRepository<Hold, Long> {
 
     List<Hold> findAllByStatusAndExpiresOnBefore(HoldStatus status, LocalDate date);
 
+    List<Hold> findAllByBookIdAndMemberIdAndStatusOrderByPlacedAtAscIdAsc(
+        Long bookId,
+        Long memberId,
+        HoldStatus status
+    );
+
+    boolean existsByMemberIdAndStatusIn(Long memberId, Collection<HoldStatus> statuses);
+
+    List<Hold> findAllByMemberIdOrderByPlacedAtDescIdDesc(Long memberId);
+
+    void deleteAllByMemberId(Long memberId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Hold h WHERE h.id = :id")
     Optional<Hold> findByIdForUpdate(@Param("id") Long id);

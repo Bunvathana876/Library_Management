@@ -10,6 +10,11 @@ export function formatLoanCode(loanId: number): string {
   return `LOAN-${String(Math.max(0, loanId)).padStart(4, '0')}`;
 }
 
+export function formatCurrency(amount: number | null | undefined): string {
+  const num = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
+  return `$${num.toFixed(2)}`;
+}
+
 export function getInitials(fullName: string): string {
   const parts = fullName
     .trim()

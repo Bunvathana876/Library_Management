@@ -89,10 +89,13 @@ public class SecurityConfig {
                     "/swagger-ui/**"
                 ).permitAll()
 
-                // Public login
+                // Public authentication
                 .requestMatchers(
-                    HttpMethod.POST, "/api/auth/login"
+                    HttpMethod.POST, "/api/auth/login", "/api/auth/register"
                 ).permitAll()
+                .requestMatchers(
+                    HttpMethod.POST, "/api/auth/change-password"
+                ).authenticated()
 
                 .requestMatchers(
                     HttpMethod.GET,

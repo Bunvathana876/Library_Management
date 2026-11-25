@@ -1,6 +1,8 @@
 
 package com.library.management;
 
+import com.library.management.model.Member;
+import com.library.management.model.Loan;
 import com.library.management.repository.BookRepository;
 import com.library.management.repository.HoldRepository;
 import com.library.management.repository.LoanRepository;
@@ -34,6 +36,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
 
@@ -334,5 +337,139 @@ class LibraryApiIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + aliceToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.returnHistory.length()").value(1));
+
+        // 8. Bob receives a HOLD_READY notification and can mark it read
+        mvc.perform(get("/api/me/notifications")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + bobToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.unreadCount").value(1));
+    }
+
+    @Test
+    void multiCopyInventoryCategoriesAndOverdueFinesWorkflow() throws Exception {
+        String librarianToken = jwtService.createToken(new UsernamePasswordAuthenticationToken(
+                "librarian2@test.local",
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_LIBRARIAN"))
+        ));
+        String adminToken = jwtService.createToken(new UsernamePasswordAuthenticationToken(
+                "admin2@test.local",
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        ));
+
+        // 1. Create a book with category, shelf location, and 2 physical copies
+        MvcResult bookRes = mvc.perform(post("/api/books")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Operating Systems",
+                      "author": "Tanenbaum",
+                      "publicationYear": 2023,
+                      "category": "Computer Science",
+                      "shelfLocation": "CS-204",
+                      "initialCopies": 2
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.category").value("Computer Science"))
+            .andExpect(jsonPath("$.shelfLocation").value("CS-204"))
+            .andExpect(jsonPath("$.totalCopies").value(2))
+            .andExpect(jsonPath("$.availableCopies").value(2))
+            .andReturn();
+        long bookId = objectMapper.readTree(bookRes.getResponse().getContentAsString()).get("id").asLong();
+
+        mvc.perform(get("/api/books").param("category", "Computer Science"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id == " + bookId + ")].totalCopies").value(2));
+
+        mvc.perform(get("/api/books/categories"))
+            .andExpect(status().isOk());
+
+        // Add 3rd copy, mark damaged, verify copy endpoint
+        MvcResult addCopyRes = mvc.perform(post("/api/books/" + bookId + "/copies")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"shelfLocation\":\"CS-204B\",\"conditionNotes\":\"Hardcover\"}"))
+            .andExpect(status().isCreated())
+            .andReturn();
+        long copy3Id = objectMapper.readTree(addCopyRes.getResponse().getContentAsString()).get("id").asLong();
+
+        mvc.perform(patch("/api/books/" + bookId + "/copies/" + copy3Id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"DAMAGED\",\"conditionNotes\":\"Water damage\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DAMAGED"));
+
+        mvc.perform(delete("/api/books/" + bookId + "/copies/" + copy3Id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken))
+            .andExpect(status().isNoContent());
+
+        // 2. Concurrent borrowing by two members of the 2 available copies
+        Member p1 = memberRepository.save(new Member("Patron One", "p1.copy@test.local"));
+        Member p2 = memberRepository.save(new Member("Patron Two", "p2.copy@test.local"));
+
+        MvcResult loan1Res = mvc.perform(post("/api/loans")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bookId\":" + bookId + ",\"memberId\":" + p1.getId() + "}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.copyBarcode").isNotEmpty())
+            .andReturn();
+        long loan1Id = objectMapper.readTree(loan1Res.getResponse().getContentAsString()).get("id").asLong();
+
+        mvc.perform(get("/api/books/" + bookId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.available").value(true))
+            .andExpect(jsonPath("$.availableCopies").value(1));
+
+        mvc.perform(post("/api/loans")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bookId\":" + bookId + ",\"memberId\":" + p2.getId() + "}"))
+            .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/books/" + bookId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.available").value(false))
+            .andExpect(jsonPath("$.availableCopies").value(0));
+
+        // 3. Backdate loan1 due date -> run reminder job -> return -> pay fine
+        Loan loanEntity = loanRepository.findById(loan1Id).orElseThrow();
+        var bookEntity = loanEntity.getBook();
+        var copyEntity = loanEntity.getCopy();
+        loanRepository.delete(loanEntity);
+        Loan backdated = loanRepository.save(new Loan(
+            bookEntity,
+            copyEntity,
+            p1,
+            LocalDate.now().minusDays(20),
+            LocalDate.now().minusDays(6)
+        ));
+
+        mvc.perform(post("/api/admin/jobs/run-reminders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.overdueNotifications").value(1));
+
+        mvc.perform(post("/api/loans/" + backdated.getId() + "/return")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fineStatus").value("UNPAID"))
+            .andExpect(jsonPath("$.fineAmount").value(3.00));
+
+        mvc.perform(get("/api/loans/fines")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/loans/" + backdated.getId() + "/fine/pay")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"note\":\"Settled at desk\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fineStatus").value("PAID"))
+            .andExpect(jsonPath("$.fineNote").value("Settled at desk"));
     }
 }

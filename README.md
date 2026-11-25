@@ -109,25 +109,25 @@ library-management/
 
 ## ✨ Key Features
 
-- **📖 Book Catalog Management**:
-  - Full CRUD operations on books (Title, Author, ISBN, Publication Year, Publisher, Cover Artwork).
-  - **Instant ISBN Auto-Fill (Open Library API)**: Typing, pasting, or scanning an ISBN (USB/Bluetooth barcode scanner or built-in camera scanner) automatically pulls verified metadata (`title`, `author`, `publicationYear`, `publisher`, canonical `isbn`) and cover artwork.
-  - Real-time search by title, author, publisher, or ISBN.
-  - Availability tracking (Available vs. On Loan).
-  - Public catalog browsing for guests without authentication.
+- **📖 Multi-Copy Book Catalog, Categories & Shelf Locations**:
+  - Full CRUD on catalog titles (`title`, `author`, `isbn`, `publicationYear`, `publisher`, `category`, `shelfLocation`, `coverUrl`) and physical copy inventory tracking (`book_copies` with barcodes like `CPY-0001-01`, statuses `AVAILABLE`, `LOANED`, `ON_HOLD`, `DAMAGED`, `LOST`).
+  - **Instant ISBN Auto-Fill (Open Library API)**: Typing, pasting, or scanning an ISBN automatically pulls verified metadata and cover artwork.
+  - Real-time search and faceted filtering by availability, category/genre, and publication year.
 
-- **👥 Member Directory**:
-  - Member registration with validation (Full Name, Email, Phone Number, Join Date).
-  - Search and filter registered library members.
+- **👥 Full Member & Account Lifecycle**:
+  - Public member self-registration (`POST /api/auth/register`) and self-service password updates (`POST /api/auth/change-password`).
+  - Staff member directory with phone/notes, edit profile, active/inactive status toggle, safe deletion checks, standing indicators, and a **Patron Standing & History Drawer**.
+  - Admin controls in **Staff & Accounts** to enable/disable accounts, reassign `LIBRARIAN`/`MEMBER` roles, reset passwords, and trigger scheduled reminder jobs manually.
 
-- **🔁 Borrowing, Renewals & Camera Scanner**:
-  - Issue book loans with automated 14-day return due dates.
-  - **Loan Renewals & Extensions (+14 Days)**: 1-click renewals (up to 2 times) directly from the circulation desk or patron portal, automatically blocked (`409`) if another member has an active hold.
-  - **Camera Barcode & QR Code Scanner**: Native browser `BarcodeDetector` scanner (with lazy `@zxing/browser` fallback) for instant webcam checkout and returns using ISBN barcodes or `CAT-xxxx` / `MEM-xxxx` / `LOAN-xxxx` QR codes.
-  - **Reservations & Holds Queue**: Place FIFO holds on checked-out books; returning a book with waiting holds automatically reserves it at the circulation desk (`READY_FOR_PICKUP`, 3-day pickup window).
+- **🔁 Borrowing Limits, Overdue Fines & Camera Scanner**:
+  - Configurable borrowing limit (default `5` active loans), automatic `$0.50/day` overdue fine accrual & return assessment, circulation desk **Fines & Standing** ledger (`Mark Paid` / `Waive`), and checkout/renewal blocks when unpaid fines reach `$10.00`.
+  - **Loan Renewals (+14 Days)** up to 2 times unless blocked by active holds or unpaid fines.
+  - **Camera Barcode & QR Code Scanner** supporting ISBN barcodes, `CAT-xxxx`, `CPY-xxxx-xx`, `MEM-xxxx`, and `LOAN-xxxx`.
+  - **Reservations & Holds Queue**: FIFO waiting queue with automatic desk promotion (`READY_FOR_PICKUP`, 3-day pickup window).
 
-- **📚 Member Self-Service Portal ("My Bookshelf")**:
-  - Activated `MEMBER` dashboard displaying active loans with due-date countdowns, 1-click `+14d` renewals, active holds & pickup notifications, return history, and a scannable Member QR pass (`MEM-xxxx`).
+- **📚 Member Self-Service Portal ("My Bookshelf") & Notifications**:
+  - Personalized member portal with active loans, due-date countdowns, unpaid fines & standing alerts, `+14d` renewals, hold queue status, return history, and scannable Member QR pass (`MEM-xxxx`).
+  - **Scheduled Jobs & Notification Center**: `@Scheduled` jobs for nightly ready-hold expiration (`02:00`) and daily due-soon/overdue alerts (`08:00`), surfaced via a top-bar notification bell popover and optional SMTP / Mailpit email alerts.
 
 - **🛡️ Authentication & Role-Based Access Control (RBAC)**:
   - Stateless authentication with HS256 JWT tokens via `Authorization: Bearer <token>` headers.
@@ -287,49 +287,70 @@ All protected endpoints require an HTTP header:
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/login` | **Public** | Authenticate with email & password; returns HS256 JWT access token |
+| `POST` | `/api/auth/register` | **Public** | Self-register a new `MEMBER` account and linked borrower profile |
+| `POST` | `/api/auth/change-password` | **Authenticated** | Change password for the currently authenticated user |
 | `GET` | `/api/auth/me` | **Authenticated** | Returns current user subject email and granted roles |
 
-### 2. Books (`/api/books`)
+### 2. Books & Physical Copies (`/api/books`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/books` | **Public** | List books with optional `?search=` filter (title, author, publisher, ISBN) |
-| `GET` | `/api/books/{id}` | **Public** | Get detailed information for a specific book |
+| `GET` | `/api/books` | **Public** | List books with optional `?search=` and `?category=` filters |
+| `GET` | `/api/books/categories` | **Public** | List distinct catalog categories |
+| `GET` | `/api/books/{id}` | **Public** | Get detailed information & copy counts for a specific book |
+| `GET` | `/api/books/{id}/copies` | **Public** | List individual physical copies and barcodes for a title |
+| `POST` | `/api/books/{id}/copies` | **STAFF / ADMIN** | Add a new physical copy (`CPY-xxxx-xx` or custom barcode) |
+| `PATCH` | `/api/books/{id}/copies/{copyId}` | **STAFF / ADMIN** | Update copy shelf location, condition notes, or `AVAILABLE`/`DAMAGED`/`LOST` status |
+| `DELETE` | `/api/books/{id}/copies/{copyId}` | **STAFF / ADMIN** | Remove an unused extra physical copy |
 | `GET` | `/api/books/isbn/{isbn}` | **STAFF / ADMIN** | Look up verified metadata & cover artwork by ISBN-10 / ISBN-13 via Open Library |
-| `POST` | `/api/books` | **STAFF / ADMIN** | Create a new book |
+| `POST` | `/api/books` | **STAFF / ADMIN** | Create a new book (supports `category`, `shelfLocation`, `initialCopies`) |
 | `PUT` | `/api/books/{id}` | **STAFF / ADMIN** | Update existing book attributes |
 | `DELETE` | `/api/books/{id}` | **STAFF / ADMIN** | Delete a book by ID |
 
 ### 3. Members (`/api/members`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/members` | **STAFF / ADMIN** | List all registered library members |
+| `GET` | `/api/members` | **STAFF / ADMIN** | List all registered library members with borrowing standing & unpaid fines |
+| `GET` | `/api/members/{id}` | **STAFF / ADMIN** | Get full patron profile, active/returned loans, fines, and hold history |
 | `POST` | `/api/members` | **STAFF / ADMIN** | Register a new library member |
+| `PUT` | `/api/members/{id}` | **STAFF / ADMIN** | Update member name, email, phone, and staff notes |
+| `PATCH` | `/api/members/{id}/status` | **STAFF / ADMIN** | Activate or deactivate a member profile |
+| `DELETE` | `/api/members/{id}` | **STAFF / ADMIN** | Delete a member with no loan history or active holds |
 
-### 4. Loans (`/api/loans`)
+### 4. Loans & Fines (`/api/loans`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/loans/active` | **STAFF / ADMIN** | List all currently active (unreturned) loans |
-| `GET` | `/api/loans/overdue` | **STAFF / ADMIN** | List all overdue loans |
+| `GET` | `/api/loans/overdue` | **STAFF / ADMIN** | List all overdue loans with live fine accrual |
+| `GET` | `/api/loans/fines` | **STAFF / ADMIN** | List active accruing overdue loans and settled/unpaid fine records |
 | `GET` | `/api/loans/{id}` | **STAFF / ADMIN** | Get details for a specific loan |
-| `POST` | `/api/loans` | **STAFF / ADMIN** | Borrow a book for a member (`bookId`, `memberId`, `dueDate`) |
-| `POST` | `/api/loans/{id}/return` | **STAFF / ADMIN** | Mark an active loan as returned and promote next hold if queued |
-| `POST` | `/api/loans/{id}/renew` | **STAFF / ADMIN** | Renew an active loan (+14 days, max 2, blocked by active holds) |
+| `POST` | `/api/loans` | **STAFF / ADMIN** | Borrow an available copy (`bookId`, `memberId`, optional `copyId`) |
+| `POST` | `/api/loans/{id}/return` | **STAFF / ADMIN** | Return a loan, assess any overdue fine, and promote waiting hold if queued |
+| `POST` | `/api/loans/{id}/renew` | **STAFF / ADMIN** | Renew an active loan (+14 days, max 2, blocked by holds or unpaid fines) |
+| `POST` | `/api/loans/{id}/fine/pay` | **STAFF / ADMIN** | Record payment for an unpaid returned-loan fine |
+| `POST` | `/api/loans/{id}/fine/waive` | **STAFF / ADMIN** | Waive an unpaid returned-loan fine |
 
-### 5. Member Self-Service ("My Bookshelf") & Holds (`/api/me`, `/api/holds`)
+### 5. Member Self-Service, Notifications & Holds (`/api/me`, `/api/holds`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/me/bookshelf` | **Authenticated** | Get active loans, return history, active/past holds, and member card ID |
-| `POST` | `/api/me/loans/{id}/renew` | **Authenticated** | Self-service 14-day renewal on own loan (max 2, blocked by holds) |
+| `GET` | `/api/me/bookshelf` | **Authenticated** | Get active loans, return history, unpaid fines, standing limits, holds, and card ID |
+| `POST` | `/api/me/loans/{id}/renew` | **Authenticated** | Self-service 14-day renewal on own loan |
+| `GET` | `/api/me/notifications` | **Authenticated** | List up to 30 recent notifications and unread badge count |
+| `POST` | `/api/me/notifications/{id}/read` | **Authenticated** | Mark a single notification as read |
+| `POST` | `/api/me/notifications/read-all` | **Authenticated** | Mark all unread notifications as read |
 | `POST` | `/api/holds` | **Authenticated** | Place a FIFO reservation hold on a loaned-out or held book |
 | `POST` | `/api/holds/{id}/cancel` | **Authenticated** | Cancel own hold (or any hold for staff), promoting next in queue |
 | `GET` | `/api/holds/active` | **STAFF / ADMIN** | List all ready pickups and FIFO waiting holds |
 | `POST` | `/api/holds/{id}/fulfill` | **STAFF / ADMIN** | Convert a ready-for-pickup hold into an active 14-day loan |
 
-### 6. Administration (`/api/admin/users`)
+### 6. Administration & Jobs (`/api/admin`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/admin/users` | **ADMIN** | List all registered user accounts and their assigned roles |
-| `POST` | `/api/admin/users` | **ADMIN** | Provision new user accounts with roles (`LIBRARIAN` or `MEMBER`) |
+| `GET` | `/api/admin/users` | **ADMIN** | List all registered user accounts, roles, and enabled state |
+| `POST` | `/api/admin/users` | **ADMIN** | Provision new user accounts (`LIBRARIAN` or `MEMBER`) |
+| `PATCH` | `/api/admin/users/{id}/status` | **ADMIN** | Enable or disable a login account |
+| `PATCH` | `/api/admin/users/{id}/role` | **ADMIN** | Reassign account role between `LIBRARIAN` and `MEMBER` |
+| `POST` | `/api/admin/users/{id}/reset-password` | **ADMIN** | Reset a user account password |
+| `POST` | `/api/admin/jobs/run-reminders` | **ADMIN** | Trigger hold-expiration and due-soon/overdue reminder jobs manually |
 
 ### 6. Interactive API Documentation
 | Method | Endpoint | Access | Description |

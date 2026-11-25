@@ -1,5 +1,7 @@
 package com.library.management.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -29,9 +31,30 @@ public record BookRequest (
 
     @Size(max = 500, message = "Cover URL is too long")
     @Pattern(regexp = "^$|^https?://\\S+$|^/\\S+$", message = "Cover URL must be an http(s) or relative URL")
-    String coverUrl
+    String coverUrl,
+
+    @Size(max = 80, message = "Category is too long")
+    String category,
+
+    @Size(max = 60, message = "Shelf location is too long")
+    String shelfLocation,
+
+    @Min(value = 1, message = "Initial copies must be at least 1")
+    @Max(value = 50, message = "Initial copies cannot exceed 50")
+    Integer initialCopies
 ) {
     public BookRequest(String title, String author, Integer publicationYear) {
-        this(title, author, publicationYear, null, null, null);
+        this(title, author, publicationYear, null, null, null, null, null, null);
+    }
+
+    public BookRequest(
+            String title,
+            String author,
+            Integer publicationYear,
+            String isbn,
+            String publisher,
+            String coverUrl
+    ) {
+        this(title, author, publicationYear, isbn, publisher, coverUrl, null, null, null);
     }
 }

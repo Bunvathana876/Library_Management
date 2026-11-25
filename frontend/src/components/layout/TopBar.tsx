@@ -1,7 +1,9 @@
 import { Camera, LogIn, Menu, Moon, Plus, Repeat, Search, Sun, UserPlus } from 'lucide-react';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import type { NavTab } from '@/components/layout/Sidebar';
+import type { NotificationItem } from '@/types/api';
 
 interface TopBarProps {
   activeTab: NavTab;
@@ -12,6 +14,13 @@ interface TopBarProps {
   onOpenBorrowBook: () => void;
   onOpenRegisterMember: () => void;
   onOpenScanner?: () => void;
+  notifications?: NotificationItem[];
+  unreadNotificationCount?: number;
+  loadingNotifications?: boolean;
+  onRefreshNotifications?: () => void;
+  onMarkNotificationRead?: (id: number) => Promise<void>;
+  onMarkAllNotificationsRead?: () => Promise<void>;
+  onNavigateBookshelf?: () => void;
 }
 
 const PAGE_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
@@ -50,6 +59,13 @@ export function TopBar({
   onOpenBorrowBook,
   onOpenRegisterMember,
   onOpenScanner,
+  notifications = [],
+  unreadNotificationCount = 0,
+  loadingNotifications = false,
+  onRefreshNotifications,
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead,
+  onNavigateBookshelf,
 }: TopBarProps) {
   const { isAuthenticated, isStaff, openSignInModal } = useAuth();
   const { renderedScheme, toggleTheme } = useTheme();
@@ -124,6 +140,16 @@ export function TopBar({
             <LogIn size={16} aria-hidden="true" />
             <span>Sign In</span>
           </button>
+        ) : onRefreshNotifications && onMarkNotificationRead && onMarkAllNotificationsRead && onNavigateBookshelf ? (
+          <NotificationBell
+            unreadCount={unreadNotificationCount}
+            items={notifications}
+            loading={loadingNotifications}
+            onRefresh={onRefreshNotifications}
+            onMarkRead={onMarkNotificationRead}
+            onMarkAllRead={onMarkAllNotificationsRead}
+            onNavigateToShelf={onNavigateBookshelf}
+          />
         ) : null}
 
         <button

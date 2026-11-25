@@ -10,16 +10,24 @@ import { installFormValidationAria } from '@/utils/formValidation';
 
 interface MemberFormModalProps {
   open: boolean;
+  editingMember?: Member | null;
   onClose: () => void;
-  onRegistered: (member: Member) => void;
+  onSaved: (member: Member) => void;
 }
 
-export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModalProps) {
+export function MemberFormModal({
+  open,
+  editingMember = null,
+  onClose,
+  onSaved,
+}: MemberFormModalProps) {
   const { notify } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -27,15 +35,17 @@ export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModal
 
   useEffect(() => {
     if (!open) return;
-    setFullName('');
-    setEmail('');
+    setFullName(editingMember?.fullName ?? '');
+    setEmail(editingMember?.email ?? '');
+    setPhone(editingMember?.phone ?? '');
+    setNotes(editingMember?.notes ?? '');
     setErrorMsg(null);
     setFieldErrors({});
     setSummaryErrors([]);
     if (formRef.current) {
       return installFormValidationAria(formRef.current);
     }
-  }, [open]);
+  }, [open, editingMember]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -68,16 +78,23 @@ export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModal
     setFieldErrors({});
 
     try {
-      const created = await membersApi.registerMember({
+      const payload = {
         fullName: fullName.trim(),
         email: email.trim(),
-      });
-      onRegistered(created);
+        phone: phone.trim() || null,
+        notes: notes.trim() || null,
+      };
+      const saved = editingMember
+        ? await membersApi.updateMember(editingMember.id, payload)
+        : await membersApi.registerMember(payload);
+      onSaved(saved);
       onClose();
       notify({
         variant: 'success',
-        title: 'Member registered',
-        message: `${created.fullName} (#${created.id}) added to the member directory.`,
+        title: editingMember ? 'Member updated' : 'Member registered',
+        message: editingMember
+          ? `Updated profile for ${saved.fullName} (#${saved.id}).`
+          : `${saved.fullName} (#${saved.id}) added to the member directory.`,
       });
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fieldErrors).length > 0) {
@@ -93,8 +110,12 @@ export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModal
     <ModalDialog
       open={open}
       onClose={onClose}
-      title="Register Library Member"
-      subtitle="Create a borrower profile so this member can check out books"
+      title={editingMember ? `Edit Member #${editingMember.id}` : 'Register Library Member'}
+      subtitle={
+        editingMember
+          ? 'Update patron contact details and circulation notes'
+          : 'Create a borrower profile so this member can check out books'
+      }
       size="sm"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
@@ -169,6 +190,39 @@ export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModal
               {fieldErrors.email || 'Enter a valid email address.'}
             </div>
           </div>
+
+          <div className="field">
+            <label className="field-label" htmlFor="member-phone">
+              Phone number (optional)
+            </label>
+            <input
+              id="member-phone"
+              name="phone"
+              type="tel"
+              className="input-control"
+              autoComplete="tel"
+              maxLength={30}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+855 12 345 678"
+            />
+          </div>
+
+          <div className="field">
+            <label className="field-label" htmlFor="member-notes">
+              Staff notes (optional)
+            </label>
+            <textarea
+              id="member-notes"
+              name="notes"
+              rows={2}
+              className="input-control"
+              maxLength={500}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Student card verified, preferred contact window, etc."
+            />
+          </div>
         </div>
 
         <div className="modal-footer">
@@ -176,7 +230,7 @@ export function MemberFormModal({ open, onClose, onRegistered }: MemberFormModal
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Registering…' : 'Register Member'}
+            {submitting ? 'Saving…' : editingMember ? 'Save Member' : 'Register Member'}
           </button>
         </div>
       </form>

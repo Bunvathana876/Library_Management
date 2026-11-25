@@ -3,6 +3,7 @@ import { extractIsbnFromBarcode, normalizeIsbn } from '@/utils/isbn';
 
 export type ParsedCirculationCode =
   | { kind: 'isbn'; isbn: string; raw: string }
+  | { kind: 'copy'; barcode: string; bookId: number; raw: string }
   | { kind: 'book'; bookId: number; raw: string }
   | { kind: 'member'; memberId: number; raw: string }
   | { kind: 'loan'; loanId: number; raw: string }
@@ -19,6 +20,10 @@ export function parseCirculationCode(rawValue: string): ParsedCirculationCode | 
       if (typeof obj.loanId === 'number' || typeof obj.loanId === 'string') {
         const id = Number.parseInt(String(obj.loanId), 10);
         if (Number.isFinite(id) && id > 0) return { kind: 'loan', loanId: id, raw: trimmed };
+      }
+      if (typeof obj.barcode === 'string') {
+        const copyParsed = parseCirculationCode(obj.barcode);
+        if (copyParsed?.kind === 'copy') return copyParsed;
       }
       if (typeof obj.bookId === 'number' || typeof obj.bookId === 'string') {
         const id = Number.parseInt(String(obj.bookId), 10);
@@ -37,6 +42,19 @@ export function parseCirculationCode(rawValue: string): ParsedCirculationCode | 
       }
     } catch {
       // Fall through to text token parsing
+    }
+  }
+
+  const copyMatch = trimmed.match(/^(CPY-(\d+)-([A-Z0-9]+))$/i);
+  if (copyMatch) {
+    const bookId = Number.parseInt(copyMatch[2], 10);
+    if (bookId > 0) {
+      return {
+        kind: 'copy',
+        barcode: copyMatch[1].toUpperCase(),
+        bookId,
+        raw: trimmed,
+      };
     }
   }
 
@@ -74,7 +92,7 @@ export function matchBookFromCode(rawValue: string, books: Book[]): Book | null 
   const parsed = parseCirculationCode(rawValue);
   if (!parsed) return null;
 
-  if (parsed.kind === 'book') {
+  if (parsed.kind === 'book' || parsed.kind === 'copy') {
     return books.find((b) => b.id === parsed.bookId) ?? null;
   }
 
@@ -128,6 +146,14 @@ export function matchActiveLoanFromCode(
 
   if (parsed.kind === 'loan') {
     return activeLoans.find((l) => l.id === parsed.loanId) ?? null;
+  }
+
+  if (parsed.kind === 'copy') {
+    const exactCopy = activeLoans.find(
+      (l) => l.copyBarcode && l.copyBarcode.toUpperCase() === parsed.barcode,
+    );
+    if (exactCopy) return exactCopy;
+    return activeLoans.find((l) => l.bookId === parsed.bookId) ?? null;
   }
 
   if (parsed.kind === 'book') {

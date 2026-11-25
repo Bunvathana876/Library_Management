@@ -47,9 +47,22 @@ services:
       LIBRARY_ADMIN_EMAIL: ${LIBRARY_ADMIN_EMAIL:?Set admin email}
       LIBRARY_ADMIN_PASSWORD: ${LIBRARY_ADMIN_PASSWORD:?Set admin password}
 
+      LIBRARY_EMAIL_ENABLED: ${LIBRARY_EMAIL_ENABLED:-false}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+
     depends_on:
       db:
         condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: library_mailpit
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
   frontend:
     build:

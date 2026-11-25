@@ -23,6 +23,13 @@ export const loansApi = {
     });
   },
 
+  getFineLoans(signal?: AbortSignal): Promise<LoanResponse[]> {
+    return apiRequest<LoanResponse[]>('/api/loans/fines', {
+      method: 'GET',
+      signal,
+    });
+  },
+
   getLoanById(id: number, signal?: AbortSignal): Promise<LoanResponse> {
     return apiRequest<LoanResponse>(`/api/loans/${id}`, {
       method: 'GET',
@@ -39,6 +46,20 @@ export const loansApi = {
   renewLoan(id: number): Promise<LoanResponse> {
     return apiRequest<LoanResponse>(`/api/loans/${id}/renew`, {
       method: 'POST',
+    });
+  },
+
+  payFine(id: number, note?: string): Promise<LoanResponse> {
+    return apiRequest<LoanResponse>(`/api/loans/${id}/fine/pay`, {
+      method: 'POST',
+      body: { note: note?.trim() || null },
+    });
+  },
+
+  waiveFine(id: number, note?: string): Promise<LoanResponse> {
+    return apiRequest<LoanResponse>(`/api/loans/${id}/fine/waive`, {
+      method: 'POST',
+      body: { note: note?.trim() || null },
     });
   },
 };

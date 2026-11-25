@@ -26,12 +26,22 @@ public interface BookRepository
         WHERE LOWER(b.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
            OR LOWER(b.author) LIKE LOWER(CONCAT('%', :keyword, '%'))
            OR LOWER(COALESCE(b.publisher, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+           OR LOWER(COALESCE(b.category, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+           OR LOWER(COALESCE(b.shelfLocation, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
            OR LOWER(COALESCE(b.isbn, '')) LIKE LOWER(CONCAT('%', :normalizedKeyword, '%'))
         """)
     List<Book> searchBooks(
         @Param("keyword") String keyword,
         @Param("normalizedKeyword") String normalizedKeyword
     );
+
+    @Query("""
+        SELECT DISTINCT b.category
+        FROM Book b
+        WHERE b.category IS NOT NULL AND TRIM(b.category) <> ''
+        ORDER BY b.category ASC
+        """)
+    List<String> findDistinctCategories();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Book b WHERE b.id = :id")

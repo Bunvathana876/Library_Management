@@ -17,6 +17,7 @@ vi.mock('@/context/AuthContext', () => ({
     openSignInModal: vi.fn(),
     closeSignInModal: vi.fn(),
     login: vi.fn(),
+    register: vi.fn(),
     logout: vi.fn(),
   }),
 }));
@@ -182,5 +183,76 @@ describe('MyBookshelfPage', () => {
       historyTab.click();
     });
     expect(container.textContent).toContain('Spring in Action');
+  });
+
+  it('displays unpaid fines, borrowing block banner, and fine ledger entries', async () => {
+    const blockedShelf: MemberBookshelfResponse = {
+      memberId: 9,
+      fullName: 'Bob Overdue',
+      email: 'bob@library.local',
+      active: true,
+      activeLoanLimit: 5,
+      dailyFineRate: 0.5,
+      unpaidFinesTotal: 12.5,
+      fineBlockThreshold: 10,
+      borrowingBlocked: true,
+      borrowingBlockReason: 'Unpaid fines ($12.50) reached the $10.00 block threshold',
+      activeLoans: [],
+      returnHistory: [],
+      fineLoans: [
+        {
+          id: 201,
+          bookId: 5,
+          copyBarcode: 'CPY-0005-01',
+          bookTitle: 'Effective Java',
+          bookAuthor: 'Joshua Bloch',
+          memberId: 9,
+          memberName: 'Bob Overdue',
+          borrowedOn: '2026-10-01',
+          dueOn: '2026-10-15',
+          returnedOn: '2026-11-09',
+          overdue: false,
+          overdueDays: 25,
+          fineAmount: 12.5,
+          fineStatus: 'UNPAID',
+          renewalCount: 0,
+          maxRenewals: 2,
+          lastRenewedOn: null,
+          hasActiveHold: false,
+          renewable: false,
+          renewDisabledReason: 'Already returned',
+          heldForMemberName: null,
+        },
+      ],
+      activeHolds: [],
+      pastHolds: [],
+    };
+
+    await act(async () => {
+      root.render(
+        <MyBookshelfPage
+          bookshelf={blockedShelf}
+          loading={false}
+          errorMsg={null}
+          onRetry={vi.fn()}
+          onRenewLoan={vi.fn()}
+          onCancelHold={vi.fn()}
+          onInspectBook={vi.fn()}
+          onBrowseCatalog={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('Borrowing & Renewals Restricted');
+    expect(container.textContent).toContain('$12.50');
+
+    const historyTab = Array.from(container.querySelectorAll('[role="tab"]')).find((t) =>
+      t.textContent?.includes('Return History'),
+    ) as HTMLButtonElement;
+    await act(async () => {
+      historyTab.click();
+    });
+    expect(container.textContent).toContain('Fine Ledger');
+    expect(container.textContent).toContain('Effective Java');
   });
 });

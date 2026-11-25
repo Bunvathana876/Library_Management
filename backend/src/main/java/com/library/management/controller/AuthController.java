@@ -1,8 +1,11 @@
 
 package com.library.management.controller;
 
+import com.library.management.dto.ChangePasswordRequest;
 import com.library.management.dto.LoginRequest;
 import com.library.management.dto.LoginResponse;
+import com.library.management.dto.RegisterRequest;
+import com.library.management.service.AccountService;
 import com.library.management.service.JwtService;
 
 import jakarta.validation.Valid;
@@ -26,13 +29,16 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final AccountService accountService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
-            JwtService jwtService
+            JwtService jwtService,
+            AccountService accountService
     ) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.accountService = accountService;
     }
 
     @PostMapping("/login")
@@ -63,6 +69,37 @@ public class AuthController {
                 "Invalid email or password"
             );
         }
+    }
+
+    @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    public LoginResponse register(
+            @Valid @RequestBody RegisterRequest request
+    ) {
+        accountService.registerMember(request);
+
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                request.email().trim().toLowerCase(Locale.ROOT),
+                request.password()
+            )
+        );
+        String token = jwtService.createToken(authentication);
+
+        return new LoginResponse(
+            token,
+            "Bearer",
+            jwtService.getAccessTokenExpirationSeconds()
+        );
+    }
+
+    @PostMapping("/change-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        accountService.changeOwnPassword(jwt.getSubject(), request);
     }
 
     @GetMapping("/me")

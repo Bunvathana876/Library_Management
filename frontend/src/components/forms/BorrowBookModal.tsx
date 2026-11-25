@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { AlertCircle, CalendarClock, Camera } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CalendarClock, Camera } from 'lucide-react';
+import { booksApi } from '@/api/booksApi';
 import { loansApi } from '@/api/loansApi';
 import { ErrorSummary, type SummaryErrorItem } from '@/components/ui/ErrorSummary';
 import { ModalDialog } from '@/components/ui/ModalDialog';
 import { useToast } from '@/context/ToastContext';
-import type { Book, HoldResponse, LoanResponse, Member } from '@/types/api';
+import type { Book, BookCopyResponse, HoldResponse, LoanResponse, Member } from '@/types/api';
 import { formatCalendarDate, previewDueDate, todayPlainDate } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
 import { installFormValidationAria } from '@/utils/formValidation';
+import { formatCurrency } from '@/utils/formatting';
 
 interface BorrowBookModalProps {
   open: boolean;
@@ -41,6 +43,8 @@ export function BorrowBookModal({
   );
 
   const [bookId, setBookId] = useState('');
+  const [copyId, setCopyId] = useState('');
+  const [availableCopies, setAvailableCopies] = useState<BookCopyResponse[]>([]);
   const [memberId, setMemberId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -68,6 +72,7 @@ export function BorrowBookModal({
             ? String(members[0].id)
             : '';
     setBookId(defaultBook);
+    setCopyId('');
     setMemberId(defaultMember);
     setErrorMsg(null);
     setSummaryErrors([]);
@@ -75,6 +80,34 @@ export function BorrowBookModal({
       return installFormValidationAria(formRef.current);
     }
   }, [open, initialBookId, initialMemberId, availableBooks, members, activeHolds]);
+
+  useEffect(() => {
+    if (!open || !bookId) {
+      setAvailableCopies([]);
+      setCopyId('');
+      return;
+    }
+    const controller = new AbortController();
+    booksApi
+      .listCopies(Number(bookId), controller.signal)
+      .then((copies) => {
+        if (!controller.signal.aborted) {
+          setAvailableCopies(copies.filter((c) => c.status === 'AVAILABLE'));
+          setCopyId('');
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setAvailableCopies([]);
+        }
+      });
+    return () => controller.abort();
+  }, [open, bookId]);
+
+  const selectedMember = useMemo(
+    () => members.find((m) => String(m.id) === memberId) ?? null,
+    [members, memberId],
+  );
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -107,13 +140,14 @@ export function BorrowBookModal({
       const loan = await loansApi.borrowBook({
         bookId: Number(bookId),
         memberId: Number(memberId),
+        ...(copyId ? { copyId: Number(copyId) } : {}),
       });
       onBorrowed(loan);
       onClose();
       notify({
         variant: 'success',
         title: 'Book checked out',
-        message: `Loan #${loan.id}: "${loan.bookTitle}" issued to ${loan.memberName}.`,
+        message: `Loan #${loan.id}: "${loan.bookTitle}" issued to ${loan.memberName}${loan.copyBarcode ? ` (${loan.copyBarcode})` : ''}.`,
       });
     } catch (err) {
       setErrorMsg(formatApiErrorMessage(err));
@@ -131,7 +165,7 @@ export function BorrowBookModal({
       open={open}
       onClose={onClose}
       title="Issue New Book Loan"
-      subtitle="Checkout an available book to a registered library member (14-day loan period)"
+      subtitle="Checkout an available copy to a registered library member (14-day loan period)"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
         <div className="modal-body form-stack">
@@ -176,7 +210,7 @@ export function BorrowBookModal({
               ) : null}
             </div>
             <span id="borrow-book-hint" className="field-hint">
-              Available shelf copies and reserved pickups ready for checkout.
+              Available titles and reserved pickups ready for checkout.
             </span>
             <select
               id="borrow-book-select"
@@ -202,11 +236,15 @@ export function BorrowBookModal({
               {availableBooks.length === 0 ? (
                 <option value="">No available books</option>
               ) : (
-                availableBooks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    #{b.id} — {b.title} ({b.author}, {b.publicationYear})
-                  </option>
-                ))
+                availableBooks.map((b) => {
+                  const total = b.totalCopies ?? 1;
+                  const avail = b.availableCopies ?? (b.available ? 1 : 0);
+                  return (
+                    <option key={b.id} value={b.id}>
+                      #{b.id} — {b.title} ({avail}/{total} avail{b.reservedForPickup ? ', Hold Ready' : ''})
+                    </option>
+                  );
+                })
               )}
             </select>
             <div id="borrow-book-error" className="field-error">
@@ -214,12 +252,36 @@ export function BorrowBookModal({
             </div>
           </div>
 
+          {availableCopies.length > 1 ? (
+            <div className="field">
+              <label className="field-label" htmlFor="borrow-copy-select">
+                Physical Copy (optional)
+              </label>
+              <select
+                id="borrow-copy-select"
+                name="copyId"
+                className="select-control mono"
+                value={copyId}
+                onChange={(e) => setCopyId(e.target.value)}
+              >
+                <option value="">Auto-assign first available copy</option>
+                {availableCopies.map((copy) => (
+                  <option key={copy.id} value={copy.id}>
+                    {copy.barcode}
+                    {copy.shelfLocation ? ` · ${copy.shelfLocation}` : ''}
+                    {copy.conditionNotes ? ` · ${copy.conditionNotes}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div className="field">
             <label className="field-label" htmlFor="borrow-member-select">
               Borrower Member
             </label>
             <span id="borrow-member-hint" className="field-hint">
-              Choose the registered member borrowing this title.
+              Choose the registered member borrowing this copy.
             </span>
             <select
               id="borrow-member-select"
@@ -237,7 +299,11 @@ export function BorrowBookModal({
               ) : (
                 members.map((m) => (
                   <option key={m.id} value={m.id}>
-                    #{m.id} — {m.fullName} ({m.email})
+                    #{m.id} — {m.fullName} ({m.activeLoanCount ?? 0}/5 loans
+                    {(m.unpaidFinesTotal ?? 0) > 0
+                      ? `, ${formatCurrency(m.unpaidFinesTotal)} fines`
+                      : ''}
+                    {m.active === false ? ', Inactive' : ''})
                   </option>
                 ))
               )}
@@ -246,6 +312,16 @@ export function BorrowBookModal({
               Select a registered member.
             </div>
           </div>
+
+          {selectedMember?.borrowingBlocked ? (
+            <div className="alert alert-warning" role="alert">
+              <AlertTriangle size={17} aria-hidden="true" className="alert-icon" />
+              <span>
+                <strong>Borrowing restricted:</strong>{' '}
+                {selectedMember.borrowingBlockReason || 'Member is currently blocked from borrowing.'}
+              </span>
+            </div>
+          ) : null}
 
           <div className="alert alert-info">
             <CalendarClock size={18} aria-hidden="true" className="alert-icon" />

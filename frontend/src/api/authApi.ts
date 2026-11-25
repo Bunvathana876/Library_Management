@@ -1,5 +1,11 @@
 import { apiRequest } from '@/api/httpClient';
-import type { AuthUser, LoginRequest, LoginResponse } from '@/types/api';
+import type {
+  AuthUser,
+  ChangePasswordRequest,
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+} from '@/types/api';
 
 export const authApi = {
   login(request: LoginRequest): Promise<LoginResponse> {
@@ -7,6 +13,24 @@ export const authApi = {
       method: 'POST',
       body: request,
       auth: false,
+      skipUnauthorizedHandler: true,
+    });
+  },
+
+  register(request: RegisterRequest): Promise<LoginResponse> {
+    return apiRequest<LoginResponse>('/api/auth/register', {
+      method: 'POST',
+      body: request,
+      auth: false,
+      skipUnauthorizedHandler: true,
+    });
+  },
+
+  changePassword(request: ChangePasswordRequest): Promise<void> {
+    return apiRequest<void>('/api/auth/change-password', {
+      method: 'POST',
+      body: request,
+      auth: true,
       skipUnauthorizedHandler: true,
     });
   },

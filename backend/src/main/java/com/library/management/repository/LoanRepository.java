@@ -1,5 +1,6 @@
 package com.library.management.repository;
 
+import com.library.management.model.FineStatus;
 import com.library.management.model.Loan;
 import jakarta.persistence.LockModeType;
 
@@ -20,13 +21,30 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
         LocalDate today
     );
 
+    List<Loan> findAllByReturnedOnIsNullAndDueOnBetweenOrderByDueOnAsc(
+        LocalDate startInclusive,
+        LocalDate endInclusive
+    );
+
     boolean existsByBookIdAndReturnedOnIsNull(Long bookId);
 
     boolean existsByBookIdAndMemberIdAndReturnedOnIsNull(Long bookId, Long memberId);
 
+    long countByMemberIdAndReturnedOnIsNull(Long memberId);
+
+    boolean existsByMemberId(Long memberId);
+
     List<Loan> findAllByMemberIdAndReturnedOnIsNullOrderByDueOnAsc(Long memberId);
 
     List<Loan> findAllByMemberIdAndReturnedOnIsNotNullOrderByReturnedOnDescIdDesc(Long memberId);
+
+    List<Loan> findAllByMemberIdAndFineStatus(Long memberId, FineStatus fineStatus);
+
+    List<Loan> findAllByMemberIdAndFineStatusNotOrderByIdDesc(Long memberId, FineStatus fineStatus);
+
+    List<Loan> findAllByFineStatusNotOrderByIdDesc(FineStatus fineStatus);
+
+    void deleteAllByMemberId(Long memberId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM Loan l WHERE l.id = :id")

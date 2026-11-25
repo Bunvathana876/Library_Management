@@ -56,8 +56,14 @@ const ACTIVE_LOANS: LoanResponse[] = [
 ];
 
 describe('circulationCodes utilities', () => {
-  it('parses call numbers, member QR passes, loan passes, ISBNs, emails, and JSON payloads', () => {
+  it('parses call numbers, copy barcodes, member QR passes, loan passes, ISBNs, emails, and JSON payloads', () => {
     expect(parseCirculationCode('CAT-0002')).toEqual({ kind: 'book', bookId: 2, raw: 'CAT-0002' });
+    expect(parseCirculationCode('CPY-0001-02')).toEqual({
+      kind: 'copy',
+      barcode: 'CPY-0001-02',
+      bookId: 1,
+      raw: 'CPY-0001-02',
+    });
     expect(parseCirculationCode('MEM-0007')).toEqual({ kind: 'member', memberId: 7, raw: 'MEM-0007' });
     expect(parseCirculationCode('LOAN-0042')).toEqual({ kind: 'loan', loanId: 42, raw: 'LOAN-0042' });
     expect(parseCirculationCode('978-0-13-235088-4')).toEqual({
@@ -77,9 +83,10 @@ describe('circulationCodes utilities', () => {
     });
   });
 
-  it('matches catalog books by ISBN, CAT code, or numeric ID', () => {
+  it('matches catalog books by ISBN, copy barcode, CAT code, or numeric ID', () => {
     expect(matchBookFromCode('9780132350884', BOOKS)?.id).toBe(2);
     expect(matchBookFromCode('CAT-0001', BOOKS)?.id).toBe(1);
+    expect(matchBookFromCode('CPY-0002-03', BOOKS)?.id).toBe(2);
     expect(matchBookFromCode('2', BOOKS)?.title).toBe('Clean Code');
     expect(matchBookFromCode('CAT-9999', BOOKS)).toBeNull();
   });

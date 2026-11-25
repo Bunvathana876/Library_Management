@@ -1,5 +1,6 @@
 package com.library.management.service;
 
+import com.library.management.config.CirculationPolicyProperties;
 import com.library.management.dto.BorrowRequest;
 import com.library.management.dto.HoldResponse;
 import com.library.management.dto.LoanResponse;
@@ -8,19 +9,26 @@ import com.library.management.exception.BookNotFoundException;
 import com.library.management.exception.BusinessRuleException;
 import com.library.management.exception.ResourceNotFoundException;
 import com.library.management.model.Book;
+import com.library.management.model.BookCopy;
+import com.library.management.model.BookCopyStatus;
+import com.library.management.model.FineStatus;
 import com.library.management.model.Hold;
 import com.library.management.model.HoldStatus;
 import com.library.management.model.Loan;
 import com.library.management.model.Member;
+import com.library.management.repository.BookCopyRepository;
 import com.library.management.repository.BookRepository;
 import com.library.management.repository.HoldRepository;
 import com.library.management.repository.LoanRepository;
 import com.library.management.repository.MemberRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -46,6 +54,9 @@ public class HoldService {
     private final LoanRepository loanRepository;
     private final MemberService memberService;
     private final LoanService loanService;
+    private final BookCopyRepository bookCopyRepository;
+    private final NotificationService notificationService;
+    private final CirculationPolicyProperties policy;
 
     public HoldService(
             HoldRepository holdRepository,
@@ -55,12 +66,40 @@ public class HoldService {
             MemberService memberService,
             LoanService loanService
     ) {
+        this(
+            holdRepository,
+            bookRepository,
+            memberRepository,
+            loanRepository,
+            memberService,
+            loanService,
+            null,
+            null,
+            CirculationPolicyProperties.defaults()
+        );
+    }
+
+    @Autowired
+    public HoldService(
+            HoldRepository holdRepository,
+            BookRepository bookRepository,
+            MemberRepository memberRepository,
+            LoanRepository loanRepository,
+            MemberService memberService,
+            LoanService loanService,
+            BookCopyRepository bookCopyRepository,
+            NotificationService notificationService,
+            CirculationPolicyProperties policy
+    ) {
         this.holdRepository = holdRepository;
         this.bookRepository = bookRepository;
         this.memberRepository = memberRepository;
         this.loanRepository = loanRepository;
         this.memberService = memberService;
         this.loanService = loanService;
+        this.bookCopyRepository = bookCopyRepository;
+        this.notificationService = notificationService;
+        this.policy = policy != null ? policy : CirculationPolicyProperties.defaults();
     }
 
     @Transactional
@@ -85,11 +124,35 @@ public class HoldService {
             member = memberService.ensureMemberForEmail(actorEmail, null);
         }
 
-        boolean bookHasActiveHold = holdRepository.existsByBookIdAndStatusIn(book.getId(), ACTIVE_STATUSES);
-        if (book.isAvailable() && !bookHasActiveHold) {
-            throw new BusinessRuleException(
-                "This book is currently available on the shelf and can be borrowed directly"
-            );
+        if (!member.isActive()) {
+            throw new BusinessRuleException("Deactivated member accounts cannot place holds");
+        }
+
+        List<BookCopy> copies = bookCopyRepository != null && book.getId() != null
+            ? bookCopyRepository.findAllByBookIdOrderByIdAsc(book.getId())
+            : List.of();
+
+        if (!copies.isEmpty()) {
+            boolean anyAvailable = copies.stream().anyMatch(c -> c.getStatus() == BookCopyStatus.AVAILABLE);
+            if (anyAvailable) {
+                throw new BusinessRuleException(
+                    "This book is currently available on the shelf and can be borrowed directly"
+                );
+            }
+            boolean anyCirculating = copies.stream()
+                .anyMatch(c -> c.getStatus() == BookCopyStatus.LOANED || c.getStatus() == BookCopyStatus.ON_HOLD);
+            if (!anyCirculating) {
+                throw new BusinessRuleException(
+                    "No circulating copies exist for this title (copies are damaged or lost)"
+                );
+            }
+        } else {
+            boolean bookHasActiveHold = holdRepository.existsByBookIdAndStatusIn(book.getId(), ACTIVE_STATUSES);
+            if (book.isAvailable() && !bookHasActiveHold) {
+                throw new BusinessRuleException(
+                    "This book is currently available on the shelf and can be borrowed directly"
+                );
+            }
         }
 
         if (loanRepository.existsByBookIdAndMemberIdAndReturnedOnIsNull(book.getId(), member.getId())) {
@@ -129,11 +192,12 @@ public class HoldService {
             .orElseThrow(() -> new BookNotFoundException(hold.getBook().getId()));
 
         boolean wasReady = hold.getStatus() == HoldStatus.READY_FOR_PICKUP;
+        BookCopy releasedCopy = hold.getCopy();
         hold.markCancelled(Instant.now());
         Hold saved = holdRepository.save(hold);
 
         if (wasReady) {
-            promoteNextWaitingOrReleaseBook(book, LocalDate.now(), Instant.now());
+            promoteNextWaitingOrReleaseCopy(book, releasedCopy, LocalDate.now(), Instant.now());
         }
 
         return HoldResponse.from(saved, 0);
@@ -153,7 +217,8 @@ public class HoldService {
             );
         }
 
-        return loanService.borrow(new BorrowRequest(hold.getBook().getId(), hold.getMember().getId()));
+        Long copyId = hold.getCopy() != null ? hold.getCopy().getId() : null;
+        return loanService.borrow(new BorrowRequest(hold.getBook().getId(), hold.getMember().getId(), copyId));
     }
 
     @Transactional
@@ -195,20 +260,51 @@ public class HoldService {
             : memberService.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("No member profile found for " + userEmail));
 
+        LocalDate today = LocalDate.now();
         List<Loan> activeLoanEntities = loanRepository.findAllByMemberIdAndReturnedOnIsNullOrderByDueOnAsc(member.getId());
         List<Loan> returnedEntities = loanRepository.findAllByMemberIdAndReturnedOnIsNotNullOrderByReturnedOnDescIdDesc(member.getId());
+        List<Loan> fineEntities = loanRepository.findAllByMemberIdAndFineStatusNotOrderByIdDesc(member.getId(), FineStatus.NONE);
         List<Hold> activeHoldEntities = holdRepository.findAllByMemberIdAndStatusInOrderByPlacedAtDescIdDesc(member.getId(), ACTIVE_STATUSES);
         List<Hold> pastHoldEntities = holdRepository.findAllByMemberIdAndStatusInOrderByPlacedAtDescIdDesc(member.getId(), PAST_STATUSES);
 
+        BigDecimal unpaidFinesTotal = loanService.calculateUnpaidFines(member.getId(), today);
+        boolean fineBlocked = unpaidFinesTotal.compareTo(policy.getFineBlockThreshold()) >= 0;
+        boolean limitReached = activeLoanEntities.size() >= policy.getMaxActiveLoans();
+        boolean borrowingBlocked = !member.isActive() || fineBlocked || limitReached;
+
+        String blockReason = null;
+        if (!member.isActive()) {
+            blockReason = "Account deactivated by staff";
+        } else if (fineBlocked) {
+            blockReason = "Unpaid fines ($" + unpaidFinesTotal.setScale(2, RoundingMode.HALF_UP)
+                + ") reached the $" + policy.getFineBlockThreshold().setScale(2, RoundingMode.HALF_UP) + " block threshold";
+        } else if (limitReached) {
+            blockReason = "Maximum active loan limit (" + policy.getMaxActiveLoans() + ") reached";
+        }
+
         Set<Long> booksWithActiveHolds = holdRepository.findBookIdsByStatusIn(ACTIVE_STATUSES);
+        BigDecimal dailyRate = policy.getDailyFineRate();
 
         List<LoanResponse> activeLoans = activeLoanEntities.stream()
-            .map(loan -> LoanResponse.from(loan, booksWithActiveHolds.contains(loan.getBook().getId())))
+            .map(loan -> LoanResponse.from(loan, booksWithActiveHolds.contains(loan.getBook().getId()), null, dailyRate, fineBlocked))
             .toList();
 
         List<LoanResponse> returnHistory = returnedEntities.stream()
-            .map(loan -> LoanResponse.from(loan, booksWithActiveHolds.contains(loan.getBook().getId())))
+            .map(loan -> LoanResponse.from(loan, booksWithActiveHolds.contains(loan.getBook().getId()), null, dailyRate, fineBlocked))
             .toList();
+
+        java.util.LinkedHashMap<Long, LoanResponse> fineMap = new java.util.LinkedHashMap<>();
+        for (LoanResponse active : activeLoans) {
+            if (active.fineStatus() == FineStatus.UNPAID) {
+                fineMap.put(active.id(), active);
+            }
+        }
+        for (Loan settled : fineEntities) {
+            fineMap.putIfAbsent(
+                settled.getId(),
+                LoanResponse.from(settled, booksWithActiveHolds.contains(settled.getBook().getId()), null, dailyRate, fineBlocked)
+            );
+        }
 
         List<HoldResponse> activeHolds = new ArrayList<>();
         for (Hold hold : activeHoldEntities) {
@@ -226,8 +322,16 @@ public class HoldService {
             member.getId(),
             member.getFullName(),
             member.getEmail(),
+            member.isActive(),
+            policy.getMaxActiveLoans(),
+            dailyRate,
+            unpaidFinesTotal,
+            policy.getFineBlockThreshold(),
+            borrowingBlocked,
+            blockReason,
             activeLoans,
             returnHistory,
+            new ArrayList<>(fineMap.values()),
             activeHolds,
             pastHolds
         );
@@ -251,17 +355,21 @@ public class HoldService {
         int count = 0;
         for (Hold hold : expiredHolds) {
             Book book = bookRepository.findByIdForUpdate(hold.getBook().getId()).orElse(null);
+            BookCopy releasedCopy = hold.getCopy();
             hold.markExpired();
             holdRepository.save(hold);
+            if (notificationService != null) {
+                notificationService.notifyHoldExpired(hold);
+            }
             count++;
             if (book != null) {
-                promoteNextWaitingOrReleaseBook(book, today, now);
+                promoteNextWaitingOrReleaseCopy(book, releasedCopy, today, now);
             }
         }
         return count;
     }
 
-    private void promoteNextWaitingOrReleaseBook(Book book, LocalDate today, Instant now) {
+    private void promoteNextWaitingOrReleaseCopy(Book book, BookCopy releasedCopy, LocalDate today, Instant now) {
         Optional<Hold> nextWaiting = holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(
             book.getId(),
             HoldStatus.WAITING
@@ -269,12 +377,32 @@ public class HoldService {
         if (nextWaiting.isPresent()) {
             Hold promoted = nextWaiting.get();
             promoted.markReadyForPickup(now, today.plusDays(Hold.PICKUP_WINDOW_DAYS));
+            if (releasedCopy != null) {
+                promoted.setCopy(releasedCopy);
+                if (bookCopyRepository != null) {
+                    releasedCopy.setStatus(BookCopyStatus.ON_HOLD);
+                    bookCopyRepository.save(releasedCopy);
+                }
+            }
             holdRepository.save(promoted);
-            book.markBorrowed();
-            bookRepository.save(book);
-        } else if (!loanRepository.existsByBookIdAndReturnedOnIsNull(book.getId())) {
-            book.markReturned();
-            bookRepository.save(book);
+            if (bookCopyRepository == null) {
+                book.markBorrowed();
+                bookRepository.save(book);
+            }
+            if (notificationService != null) {
+                notificationService.notifyHoldReady(promoted);
+            }
+        } else {
+            if (releasedCopy != null && bookCopyRepository != null) {
+                releasedCopy.setStatus(BookCopyStatus.AVAILABLE);
+                bookCopyRepository.save(releasedCopy);
+                long avail = bookCopyRepository.countByBookIdAndStatus(book.getId(), BookCopyStatus.AVAILABLE);
+                book.setAvailable(avail > 0);
+                bookRepository.save(book);
+            } else if (!loanRepository.existsByBookIdAndReturnedOnIsNull(book.getId())) {
+                book.markReturned();
+                bookRepository.save(book);
+            }
         }
     }
 

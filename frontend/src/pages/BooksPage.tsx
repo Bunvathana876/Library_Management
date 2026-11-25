@@ -82,10 +82,12 @@ export function BooksPage({
   const { isAuthenticated, isStaff } = useAuth();
   const tableCaptionId = useId();
   const statusSelectId = useId();
+  const categorySelectId = useId();
   const yearSelectId = useId();
   const sortSelectId = useId();
 
   const [availability, setAvailability] = useState<AvailabilityFilter>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('title-asc');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -130,6 +132,22 @@ export function BooksPage({
     return Array.from(years).sort((a, b) => b - a);
   }, [books]);
 
+  const availableCategories = useMemo(() => {
+    const categories = new Set<string>();
+    for (const book of books) {
+      if (book.category && book.category.trim().length > 0) {
+        categories.add(book.category.trim());
+      }
+    }
+    return Array.from(categories).sort((a, b) => a.localeCompare(b));
+  }, [books]);
+
+  useEffect(() => {
+    if (selectedCategory !== 'all' && !availableCategories.includes(selectedCategory)) {
+      setSelectedCategory('all');
+    }
+  }, [availableCategories, selectedCategory]);
+
   // If the selected year disappears (e.g. a temporary record was deleted), fall back cleanly
   useEffect(() => {
     if (selectedYear !== 'all' && !availableYears.includes(Number(selectedYear))) {
@@ -143,6 +161,7 @@ export function BooksPage({
     const subset = books.filter((book) => {
       if (availability === 'available' && !book.available) return false;
       if (availability === 'borrowed' && book.available) return false;
+      if (selectedCategory !== 'all' && (book.category?.trim() ?? '') !== selectedCategory) return false;
       if (selectedYear !== 'all' && String(book.publicationYear) !== selectedYear) return false;
 
       if (trimmedQuery.length > 0) {
@@ -154,6 +173,8 @@ export function BooksPage({
           book.title.toLowerCase().includes(trimmedQuery) ||
           book.author.toLowerCase().includes(trimmedQuery) ||
           (book.publisher ? book.publisher.toLowerCase().includes(trimmedQuery) : false) ||
+          (book.category ? book.category.toLowerCase().includes(trimmedQuery) : false) ||
+          (book.shelfLocation ? book.shelfLocation.toLowerCase().includes(trimmedQuery) : false) ||
           (normalizedBookIsbn && normalizedQuery
             ? normalizedBookIsbn.includes(normalizedQuery)
             : false) ||
@@ -178,7 +199,7 @@ export function BooksPage({
           return a.publicationYear - b.publicationYear || a.title.localeCompare(b.title);
       }
     });
-  }, [books, availability, selectedYear, searchQuery, sortBy]);
+  }, [books, availability, selectedCategory, selectedYear, searchQuery, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
@@ -197,11 +218,15 @@ export function BooksPage({
   const rangeEnd = Math.min(safePage * PAGE_SIZE, filteredBooks.length);
 
   const hasActiveFilters =
-    searchQuery.trim().length > 0 || availability !== 'all' || selectedYear !== 'all';
+    searchQuery.trim().length > 0 ||
+    availability !== 'all' ||
+    selectedCategory !== 'all' ||
+    selectedYear !== 'all';
 
   const clearAllFilters = () => {
     onSearchChange('');
     setAvailability('all');
+    setSelectedCategory('all');
     setSelectedYear('all');
     setCurrentPage(1);
     setStatusAnnouncement('Cleared all catalog filters.');
@@ -334,6 +359,36 @@ export function BooksPage({
           </div>
 
           <div className="catalog-select-wrap">
+            <label htmlFor={categorySelectId} className="visually-hidden">
+              Filter by category
+            </label>
+            <select
+              id={categorySelectId}
+              name="catalog-category"
+              className="catalog-select catalog-select-category"
+              value={selectedCategory}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSelectedCategory(next);
+                setCurrentPage(1);
+                setStatusAnnouncement(
+                  next === 'all'
+                    ? 'Showing all categories.'
+                    : `Filtered catalog category to ${next}.`,
+                );
+              }}
+            >
+              <option value="all">All Categories</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
+          </div>
+
+          <div className="catalog-select-wrap">
             <label htmlFor={yearSelectId} className="visually-hidden">
               Filter by publication year
             </label>
@@ -357,6 +412,36 @@ export function BooksPage({
               {availableYears.map((year) => (
                 <option key={year} value={String(year)}>
                   {year}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
+          </div>
+
+          <div className="catalog-select-wrap">
+            <label htmlFor={categorySelectId} className="visually-hidden">
+              Filter by category
+            </label>
+            <select
+              id={categorySelectId}
+              name="catalog-category"
+              className="catalog-select catalog-select-category"
+              value={selectedCategory}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSelectedCategory(next);
+                setCurrentPage(1);
+                setStatusAnnouncement(
+                  next === 'all'
+                    ? 'Showing all categories.'
+                    : `Filtered catalog category to ${next}.`,
+                );
+              }}
+            >
+              <option value="all">All Categories</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
                 </option>
               ))}
             </select>
@@ -419,6 +504,7 @@ export function BooksPage({
             {filteredBooks.length === 1 ? '' : 's'}
             {searchQuery.trim() ? ` matching "${searchQuery.trim()}"` : ''}
             {availability !== 'all' ? ` · ${availability}` : ''}
+            {selectedCategory !== 'all' ? ` · ${selectedCategory}` : ''}
             {selectedYear !== 'all' ? ` · ${selectedYear}` : ''}
           </span>
           <button type="button" className="btn btn-ghost btn-sm" onClick={clearAllFilters}>
@@ -478,16 +564,22 @@ export function BooksPage({
           {paginatedBooks.map((book, idx) => {
             const myHold = myHoldsByBookId.get(book.id);
             const holdCount = book.activeHoldCount ?? 0;
+            const totalCopies = book.totalCopies ?? 1;
+            const availableCopies = book.availableCopies ?? (book.available ? 1 : 0);
             const statusClass = book.available
               ? 'catalog-status-badge catalog-status-available'
               : book.reservedForPickup
                 ? 'catalog-status-badge catalog-status-reserved'
                 : 'catalog-status-badge catalog-status-borrowed';
             const statusLabel = book.available
-              ? 'Available'
+              ? totalCopies > 1
+                ? `${availableCopies}/${totalCopies} Avail`
+                : 'Available'
               : book.reservedForPickup
                 ? 'Held at Desk'
-                : 'Borrowed';
+                : totalCopies > 1
+                  ? `0/${totalCopies} Borrowed`
+                  : 'Borrowed';
             return (
               <article key={book.id} className="catalog-card">
                 <div className="catalog-card-main">
@@ -504,6 +596,9 @@ export function BooksPage({
                   <div className="catalog-card-info">
                     <div className="catalog-card-top">
                       <span className="catalog-id-badge mono">{formatCallNumber(book.id)}</span>
+                      {book.category ? (
+                        <span className="badge badge-neutral">{book.category}</span>
+                      ) : null}
                       <span className={statusClass}>
                         <span className="catalog-status-dot" aria-hidden="true" />
                         {statusLabel}
@@ -527,7 +622,8 @@ export function BooksPage({
                       <span className="catalog-meta-item">
                         <Layers size={14} className="catalog-meta-icon" aria-hidden="true" />
                         <span className="mono">
-                          {book.isbn ? `ISBN ${book.isbn}` : `Record #${book.id}`}
+                          {book.isbn ? `ISBN ${book.isbn}` : `${totalCopies} ${totalCopies === 1 ? 'copy' : 'copies'}`}
+                          {book.shelfLocation ? ` · Shelf ${book.shelfLocation}` : ''}
                         </span>
                       </span>
                       {holdCount > 0 ? (
@@ -673,13 +769,18 @@ export function BooksPage({
                       <th scope="row">
                         <div>{book.title}</div>
                         <div className="mono table-subline">
-                          {formatCallNumber(book.id)} · Record #{book.id}
+                          {formatCallNumber(book.id)} · {book.availableCopies ?? (book.available ? 1 : 0)}/{book.totalCopies ?? 1} avail
+                          {book.shelfLocation ? ` · ${book.shelfLocation}` : ''}
                           {book.isbn ? ` · ISBN ${book.isbn}` : ''}
                         </div>
                       </th>
                       <td>
                         <div>{book.author}</div>
-                        {book.publisher ? <div className="table-subline">{book.publisher}</div> : null}
+                        <div className="table-subline">
+                          {book.category ? book.category : ''}
+                          {book.category && book.publisher ? ' · ' : ''}
+                          {book.publisher ? book.publisher : ''}
+                        </div>
                       </td>
                       <td className="tabular-nums">{book.publicationYear}</td>
                       <td>

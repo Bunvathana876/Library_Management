@@ -19,6 +19,10 @@ public class Hold {
     @JoinColumn(name = "book_id", nullable = false)
     private Book book;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "copy_id")
+    private BookCopy copy;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
@@ -83,6 +87,14 @@ public class Hold {
 
     public Book getBook() {
         return book;
+    }
+
+    public BookCopy getCopy() {
+        return copy;
+    }
+
+    public void setCopy(BookCopy copy) {
+        this.copy = copy;
     }
 
     public Member getMember() {
