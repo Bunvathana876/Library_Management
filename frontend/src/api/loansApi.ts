@@ -35,4 +35,10 @@ export const loansApi = {
       method: 'POST',
     });
   },
+
+  renewLoan(id: number): Promise<LoanResponse> {
+    return apiRequest<LoanResponse>(`/api/loans/${id}/renew`, {
+      method: 'POST',
+    });
+  },
 };

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
   KeyRound,
   Lock,
   LogIn,
+  RefreshCw,
   ShieldCheck,
   Wand2,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ export function AdminUsersPage() {
   const matrixCaptionId = useId();
 
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'LIBRARIAN' | 'MEMBER'>('LIBRARIAN');
   const [showPassword, setShowPassword] = useState(false);
@@ -43,7 +45,31 @@ export function AdminUsersPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [summaryErrors, setSummaryErrors] = useState<SummaryErrorItem[]>([]);
-  const [createdAccounts, setCreatedAccounts] = useState<AccountResponse[]>([]);
+  const [accounts, setAccounts] = useState<AccountResponse[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  const fetchAccounts = useCallback(async (signal?: AbortSignal) => {
+    if (!isAdmin) return;
+    setLoadingAccounts(true);
+    setAccountsError(null);
+    try {
+      const list = await adminApi.listAccounts(signal);
+      setAccounts(list);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setAccountsError(formatApiErrorMessage(err));
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const controller = new AbortController();
+    void fetchAccounts(controller.signal);
+    return () => controller.abort();
+  }, [isAdmin, fetchAccounts]);
 
   useEffect(() => {
     if (!isAdmin || !formRef.current) return;
@@ -109,10 +135,12 @@ export function AdminUsersPage() {
         email: email.trim(),
         password,
         role,
+        ...(role === 'MEMBER' && fullName.trim() ? { fullName: fullName.trim() } : {}),
       });
 
-      setCreatedAccounts((prev) => [created, ...prev]);
+      setAccounts((prev) => [created, ...prev]);
       setEmail('');
+      setFullName('');
       setPassword('');
       setShowPassword(false);
       form.reset();
@@ -308,11 +336,33 @@ export function AdminUsersPage() {
                   MEMBER
                 </span>
                 <span className="field-hint">
-                  Reader access to browse and inspect the catalog.
+                  My Bookshelf access for loans, 14-day renewals, and holds.
                 </span>
               </button>
             </div>
           </div>
+
+          {role === 'MEMBER' ? (
+            <div className="field">
+              <label className="field-label" htmlFor="admin-user-fullname">
+                Patron full name (optional)
+              </label>
+              <span id="admin-user-fullname-hint" className="field-hint">
+                Links this login to a patron borrower card (auto-derived from email if left blank).
+              </span>
+              <input
+                id="admin-user-fullname"
+                name="fullName"
+                type="text"
+                className="input-control"
+                maxLength={120}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                aria-describedby="admin-user-fullname-hint"
+                placeholder="Sokha Dara"
+              />
+            </div>
+          ) : null}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -341,7 +391,8 @@ export function AdminUsersPage() {
               <thead>
                 <tr>
                   <th scope="col">Role</th>
-                  <th scope="col">Catalog</th>
+                  <th scope="col">Catalog &amp; Holds</th>
+                  <th scope="col">Self-Service</th>
                   <th scope="col">Desk Ops</th>
                   <th scope="col">Users</th>
                 </tr>
@@ -349,25 +400,29 @@ export function AdminUsersPage() {
               <tbody>
                 <tr>
                   <th scope="row">Guest</th>
-                  <td>Yes</td>
+                  <td>Browse</td>
+                  <td>No</td>
                   <td>No</td>
                   <td>No</td>
                 </tr>
                 <tr>
                   <th scope="row">MEMBER</th>
                   <td>Yes</td>
+                  <td>My Bookshelf</td>
                   <td>No</td>
                   <td>No</td>
                 </tr>
                 <tr>
                   <th scope="row">LIBRARIAN</th>
                   <td>Yes</td>
+                  <td>My Bookshelf</td>
                   <td>Full Access</td>
                   <td>No</td>
                 </tr>
                 <tr>
                   <th scope="row">ADMIN</th>
                   <td>Yes</td>
+                  <td>My Bookshelf</td>
                   <td>Full Access</td>
                   <td>Yes</td>
                 </tr>
@@ -377,20 +432,48 @@ export function AdminUsersPage() {
         </section>
 
         <section className="card card-padded form-stack" aria-labelledby="session-accounts-heading">
-          <div>
-            <h3 id="session-accounts-heading" className="card-title">
-              Created in This Session
-            </h3>
-            <p className="card-subtitle">Accounts created during your current session</p>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0 }}>
+            <div>
+              <h3 id="session-accounts-heading" className="card-title">
+                System Accounts Directory
+              </h3>
+              <p className="card-subtitle">Active system users and assigned roles</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
+                {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon icon-square-btn"
+                onClick={() => void fetchAccounts()}
+                disabled={loadingAccounts}
+                aria-label="Refresh accounts directory"
+                title="Refresh directory"
+              >
+                <RefreshCw size={14} className={loadingAccounts ? 'spin-animation' : undefined} aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
-          {createdAccounts.length === 0 ? (
+          {accountsError ? (
+            <div className="alert alert-danger" role="alert" style={{ fontSize: '0.85rem' }}>
+              <AlertCircle size={16} aria-hidden="true" className="alert-icon" />
+              <span>{accountsError}</span>
+            </div>
+          ) : null}
+
+          {loadingAccounts && accounts.length === 0 ? (
             <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-              Newly created Librarian and Member accounts will appear here after submission.
+              Loading system accounts…
+            </p>
+          ) : accounts.length === 0 ? (
+            <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+              No system accounts found. Newly created accounts will appear here.
             </p>
           ) : (
-            <div className="form-stack" style={{ gap: '0.6rem' }}>
-              {createdAccounts.map((acc) => (
+            <div className="form-stack" style={{ gap: '0.6rem', maxHeight: '380px', overflowY: 'auto' }}>
+              {accounts.map((acc) => (
                 <div key={acc.id} className="session-account-row">
                   <div className="session-account-info">
                     <CheckCircle2
@@ -404,7 +487,7 @@ export function AdminUsersPage() {
                     </div>
                   </div>
                   <div className="row-actions">
-                    <StatusBadge tone={acc.role === 'LIBRARIAN' ? 'info' : 'neutral'} dot={false}>
+                    <StatusBadge tone={acc.role === 'ADMIN' ? 'warning' : acc.role === 'LIBRARIAN' ? 'info' : 'neutral'} dot={false}>
                       {acc.role}
                     </StatusBadge>
                     <button

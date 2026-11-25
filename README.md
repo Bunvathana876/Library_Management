@@ -110,8 +110,9 @@ library-management/
 ## ✨ Key Features
 
 - **📖 Book Catalog Management**:
-  - Full CRUD operations on books (Title, Author, ISBN, Publication Year, Copies).
-  - Real-time search by title, author, or ISBN.
+  - Full CRUD operations on books (Title, Author, ISBN, Publication Year, Publisher, Cover Artwork).
+  - **Instant ISBN Auto-Fill (Open Library API)**: Typing, pasting, or scanning an ISBN (USB/Bluetooth barcode scanner or built-in camera scanner) automatically pulls verified metadata (`title`, `author`, `publicationYear`, `publisher`, canonical `isbn`) and cover artwork.
+  - Real-time search by title, author, publisher, or ISBN.
   - Availability tracking (Available vs. On Loan).
   - Public catalog browsing for guests without authentication.
 
@@ -119,11 +120,14 @@ library-management/
   - Member registration with validation (Full Name, Email, Phone Number, Join Date).
   - Search and filter registered library members.
 
-- **🔁 Borrowing & Loan Lifecycle**:
-  - Issue book loans with automated return due dates.
-  - Return processing with book inventory replenishment.
-  - Active loan monitoring and real-time overdue loan tracking.
-  - Enforced business rules (prevent borrowing unavailable books or exceeding loan limits).
+- **🔁 Borrowing, Renewals & Camera Scanner**:
+  - Issue book loans with automated 14-day return due dates.
+  - **Loan Renewals & Extensions (+14 Days)**: 1-click renewals (up to 2 times) directly from the circulation desk or patron portal, automatically blocked (`409`) if another member has an active hold.
+  - **Camera Barcode & QR Code Scanner**: Native browser `BarcodeDetector` scanner (with lazy `@zxing/browser` fallback) for instant webcam checkout and returns using ISBN barcodes or `CAT-xxxx` / `MEM-xxxx` / `LOAN-xxxx` QR codes.
+  - **Reservations & Holds Queue**: Place FIFO holds on checked-out books; returning a book with waiting holds automatically reserves it at the circulation desk (`READY_FOR_PICKUP`, 3-day pickup window).
+
+- **📚 Member Self-Service Portal ("My Bookshelf")**:
+  - Activated `MEMBER` dashboard displaying active loans with due-date countdowns, 1-click `+14d` renewals, active holds & pickup notifications, return history, and a scannable Member QR pass (`MEM-xxxx`).
 
 - **🛡️ Authentication & Role-Based Access Control (RBAC)**:
   - Stateless authentication with HS256 JWT tokens via `Authorization: Bearer <token>` headers.
@@ -160,8 +164,8 @@ library-management/
 | **Language** | TypeScript | 5.8 | Full type safety matching backend DTOs |
 | **Build Tool** | Vite | 6.3 | Ultra-fast development server and optimized bundle builder |
 | **Icons & Polyfills** | Lucide React / Temporal | Latest | Clean UI iconography & ISO date handling |
-| **Unit Testing (UI)**| Vitest | 3.1 | Fast in-memory unit testing for utils & validation |
-| **Containers** | Docker & Docker Compose | Latest | Standardized containerization for API and Database |
+| **Unit Testing (UI)**| Vitest | 5.1 | Fast in-memory unit testing for utils & validation |
+| **Containers** | Docker & Docker Compose | Latest | Standardized containerization for Frontend, API and Database |
 
 ---
 
@@ -208,24 +212,20 @@ LIBRARY_ADMIN_PASSWORD=change-me-admin-password
 
 ---
 
-### 2. Option A: Run with Docker Compose (Fastest)
+### 2. Option A: Run Full Stack with Docker Compose (Fastest)
 
-To launch the database and the backend API together in containers:
+To launch the complete system (PostgreSQL database, Spring Boot API, and Nginx React frontend):
 
 ```bash
-# Build and start all services in the background
+# Build and start all three services in the background
 docker compose up -d --build
 ```
 
-Then start the frontend web client:
+- **Frontend Web UI**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
+- **Spring Boot REST API**: [http://127.0.0.1:8080](http://127.0.0.1:8080)
+- **Actuator Health**: [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)
+- **PostgreSQL Database**: `127.0.0.1:5545` (internal `5432`)
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Visit **http://127.0.0.1:5173** in your web browser.
 
 ---
 
@@ -292,8 +292,9 @@ All protected endpoints require an HTTP header:
 ### 2. Books (`/api/books`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/books` | **Public** | List books with optional `?search=` filter (title, author, ISBN) |
+| `GET` | `/api/books` | **Public** | List books with optional `?search=` filter (title, author, publisher, ISBN) |
 | `GET` | `/api/books/{id}` | **Public** | Get detailed information for a specific book |
+| `GET` | `/api/books/isbn/{isbn}` | **STAFF / ADMIN** | Look up verified metadata & cover artwork by ISBN-10 / ISBN-13 via Open Library |
 | `POST` | `/api/books` | **STAFF / ADMIN** | Create a new book |
 | `PUT` | `/api/books/{id}` | **STAFF / ADMIN** | Update existing book attributes |
 | `DELETE` | `/api/books/{id}` | **STAFF / ADMIN** | Delete a book by ID |
@@ -311,14 +312,32 @@ All protected endpoints require an HTTP header:
 | `GET` | `/api/loans/overdue` | **STAFF / ADMIN** | List all overdue loans |
 | `GET` | `/api/loans/{id}` | **STAFF / ADMIN** | Get details for a specific loan |
 | `POST` | `/api/loans` | **STAFF / ADMIN** | Borrow a book for a member (`bookId`, `memberId`, `dueDate`) |
-| `POST` | `/api/loans/{id}/return` | **STAFF / ADMIN** | Mark an active loan as returned and replenish stock |
+| `POST` | `/api/loans/{id}/return` | **STAFF / ADMIN** | Mark an active loan as returned and promote next hold if queued |
+| `POST` | `/api/loans/{id}/renew` | **STAFF / ADMIN** | Renew an active loan (+14 days, max 2, blocked by active holds) |
 
-### 5. Administration (`/api/admin/users`)
+### 5. Member Self-Service ("My Bookshelf") & Holds (`/api/me`, `/api/holds`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/admin/users` | **ADMIN** | Provision new user accounts with roles (`LIBRARIAN` or `ADMIN`) |
+| `GET` | `/api/me/bookshelf` | **Authenticated** | Get active loans, return history, active/past holds, and member card ID |
+| `POST` | `/api/me/loans/{id}/renew` | **Authenticated** | Self-service 14-day renewal on own loan (max 2, blocked by holds) |
+| `POST` | `/api/holds` | **Authenticated** | Place a FIFO reservation hold on a loaned-out or held book |
+| `POST` | `/api/holds/{id}/cancel` | **Authenticated** | Cancel own hold (or any hold for staff), promoting next in queue |
+| `GET` | `/api/holds/active` | **STAFF / ADMIN** | List all ready pickups and FIFO waiting holds |
+| `POST` | `/api/holds/{id}/fulfill` | **STAFF / ADMIN** | Convert a ready-for-pickup hold into an active 14-day loan |
 
-### 6. System Health
+### 6. Administration (`/api/admin/users`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/users` | **ADMIN** | List all registered user accounts and their assigned roles |
+| `POST` | `/api/admin/users` | **ADMIN** | Provision new user accounts with roles (`LIBRARIAN` or `MEMBER`) |
+
+### 6. Interactive API Documentation
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/swagger-ui.html` | **Public** | Interactive OpenAPI / Swagger UI playground and documentation |
+| `GET` | `/v3/api-docs` | **Public** | Raw OpenAPI JSON specification |
+
+### 7. System Health
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/actuator/health` | **Public** | Spring Boot Actuator application and database health status |

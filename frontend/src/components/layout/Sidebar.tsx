@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import {
+  BookmarkCheck,
   BookOpen,
   LayoutDashboard,
   Lock,
@@ -17,7 +18,7 @@ import { formatRoleLabel, getPrimaryRole } from '@/utils/roles';
 import { BrandMark } from '@/components/ui/BrandMark';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
-export type NavTab = 'overview' | 'books' | 'loans' | 'members' | 'admin';
+export type NavTab = 'overview' | 'books' | 'bookshelf' | 'loans' | 'members' | 'admin';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -26,6 +27,7 @@ interface SidebarProps {
   onCloseMobile: () => void;
   counts: {
     books: number;
+    myLoans?: number | null;
     activeLoans: number | null;
     overdueLoans: number | null;
     members: number | null;
@@ -73,6 +75,13 @@ export function Sidebar({
       items: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'books', label: 'Books Catalog', icon: BookOpen, count: counts.books },
+        {
+          id: 'bookshelf',
+          label: 'My Bookshelf',
+          icon: BookmarkCheck,
+          count: isAuthenticated ? counts.myLoans : null,
+          locked: !isAuthenticated,
+        },
       ],
     },
     {

@@ -2,7 +2,9 @@ import {
   AlertTriangle,
   ArrowRight,
   BookCheck,
+  BookmarkCheck,
   BookOpen,
+  Camera,
   KeyRound,
   LibraryBig,
   LogIn,
@@ -14,14 +16,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { AvailabilityGauge } from '@/components/ui/AvailabilityGauge';
+import { BookCoverImage } from '@/components/ui/BookCoverImage';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatCardSkeleton, TableSkeleton } from '@/components/ui/Skeleton';
 import { StatCard } from '@/components/ui/StatCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { NavTab } from '@/components/layout/Sidebar';
-import type { Book, LoanResponse, Member } from '@/types/api';
+import type { Book, LoanResponse, Member, MemberBookshelfResponse } from '@/types/api';
 import { describeLoanSchedule, formatCalendarDate } from '@/utils/dates';
-import { getBookCoverArtwork } from '@/utils/bookCovers';
 import { formatCallNumber } from '@/utils/formatting';
 import { formatRoleLabel, getPrimaryRole } from '@/utils/roles';
 
@@ -30,6 +32,7 @@ interface OverviewPageProps {
   activeLoans: LoanResponse[];
   overdueLoans: LoanResponse[];
   members: Member[];
+  bookshelf?: MemberBookshelfResponse | null;
   loadingBooks: boolean;
   booksError?: string | null;
   onRetryBooks?: () => void;
@@ -37,6 +40,7 @@ interface OverviewPageProps {
   onInspectBook: (bookId: number) => void;
   onOpenAddBook: () => void;
   onOpenBorrowBook: () => void;
+  onOpenScanner?: () => void;
   onOpenRegisterMember: () => void;
   onRequestReturnLoan: (loan: LoanResponse) => void;
 }
@@ -46,6 +50,7 @@ export function OverviewPage({
   activeLoans,
   overdueLoans,
   members,
+  bookshelf = null,
   loadingBooks,
   booksError = null,
   onRetryBooks,
@@ -53,6 +58,7 @@ export function OverviewPage({
   onInspectBook,
   onOpenAddBook,
   onOpenBorrowBook,
+  onOpenScanner,
   onOpenRegisterMember,
   onRequestReturnLoan,
 }: OverviewPageProps) {
@@ -104,12 +110,21 @@ export function OverviewPage({
                 <Repeat size={16} aria-hidden="true" />
                 <span>Issue Loan</span>
               </button>
-            ) : !isAuthenticated ? (
+            ) : isAuthenticated ? (
+              <button
+                type="button"
+                className="btn btn-hero-outline"
+                onClick={() => onNavigate('bookshelf')}
+              >
+                <BookmarkCheck size={16} aria-hidden="true" />
+                <span>My Bookshelf</span>
+              </button>
+            ) : (
               <button type="button" className="btn btn-hero-outline" onClick={openSignInModal}>
                 <LogIn size={16} aria-hidden="true" />
                 <span>Sign In</span>
               </button>
-            ) : null}
+            )}
           </div>
         </div>
 
@@ -282,6 +297,20 @@ export function OverviewPage({
                   <ArrowRight size={15} aria-hidden="true" />
                 </button>
 
+                {onOpenScanner ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary quick-op-btn"
+                    onClick={onOpenScanner}
+                  >
+                    <span className="quick-op-label">
+                      <Camera size={16} aria-hidden="true" />
+                      <span>Camera Barcode / QR Scanner</span>
+                    </span>
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
                   className="btn btn-secondary quick-op-btn"
@@ -373,13 +402,11 @@ export function OverviewPage({
                   <div key={book.id} className="highlight-row">
                     <div className="highlight-lead">
                       <div className="highlight-cover-thumb" aria-hidden="true">
-                        <img
-                          src={getBookCoverArtwork(book)}
-                          alt=""
+                        <BookCoverImage
+                          book={book}
                           width={80}
                           height={104}
                           loading="lazy"
-                          decoding="async"
                           className="highlight-cover-img"
                         />
                       </div>
@@ -435,9 +462,30 @@ export function OverviewPage({
               <div className="access-info-panel">
                 <KeyRound size={18} aria-hidden="true" className="access-key-icon" />
                 <span>
-                  <strong>Public &amp; Member:</strong> Search and inspect the entire book catalog
-                  freely. Staff circulation, member registration, and account provisioning require{' '}
-                  <code>LIBRARIAN</code> or <code>ADMIN</code> credentials.
+                  {isAuthenticated && bookshelf ? (
+                    <>
+                      <strong>My Bookshelf Active:</strong> You have{' '}
+                      <strong>{bookshelf.activeLoans.length}</strong> active loan
+                      {bookshelf.activeLoans.length === 1 ? '' : 's'} and{' '}
+                      <strong>{bookshelf.activeHolds.length}</strong> active hold
+                      {bookshelf.activeHolds.length === 1 ? '' : 's'}. Open{' '}
+                      <button
+                        type="button"
+                        className="error-summary-link"
+                        onClick={() => onNavigate('bookshelf')}
+                      >
+                        My Bookshelf
+                      </button>{' '}
+                      to renew loans (+14 days) or track pickups.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Public &amp; Member:</strong> Search and inspect the catalog freely,
+                      manage personal loans &amp; holds in My Bookshelf, or sign in with{' '}
+                      <code>LIBRARIAN</code> / <code>ADMIN</code> credentials for circulation desk
+                      operations.
+                    </>
+                  )}
                 </span>
               </div>
 

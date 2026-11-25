@@ -20,6 +20,14 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
         LocalDate today
     );
 
+    boolean existsByBookIdAndReturnedOnIsNull(Long bookId);
+
+    boolean existsByBookIdAndMemberIdAndReturnedOnIsNull(Long bookId, Long memberId);
+
+    List<Loan> findAllByMemberIdAndReturnedOnIsNullOrderByDueOnAsc(Long memberId);
+
+    List<Loan> findAllByMemberIdAndReturnedOnIsNotNullOrderByReturnedOnDescIdDesc(Long memberId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM Loan l WHERE l.id = :id")
     Optional<Loan> findByIdForUpdate(@Param("id") Long id);

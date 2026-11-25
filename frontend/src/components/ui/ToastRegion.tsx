@@ -26,13 +26,13 @@ function ToastCard({
   };
 
   useEffect(() => {
-    scheduleDismiss(5000);
+    scheduleDismiss(item.variant === 'error' ? 5000 : 3400);
     return () => {
       if (timerRef.current !== null) {
         window.clearTimeout(timerRef.current);
       }
     };
-  }, [item.id, onDismiss]);
+  }, [item.id, item.variant, onDismiss]);
 
   const Icon =
     item.variant === 'success' ? CheckCircle2 : item.variant === 'error' ? AlertCircle : Info;

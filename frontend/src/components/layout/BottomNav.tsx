@@ -1,4 +1,4 @@
-import { BookOpen, LayoutDashboard, Repeat, ShieldCheck, Users } from 'lucide-react';
+import { BookmarkCheck, BookOpen, LayoutDashboard, Repeat, ShieldCheck, Users } from 'lucide-react';
 import type { NavTab } from '@/components/layout/Sidebar';
 import { useAuth } from '@/context/AuthContext';
 
@@ -7,13 +7,14 @@ interface BottomNavProps {
   onSelectTab: (tab: NavTab) => void;
   counts: {
     books: number;
+    myLoans?: number | null;
     activeLoans: number | null;
     overdueLoans: number | null;
   };
 }
 
 export function BottomNav({ activeTab, onSelectTab, counts }: BottomNavProps) {
-  const { isStaff } = useAuth();
+  const { isAuthenticated, isStaff, isAdmin } = useAuth();
 
   const items: Array<{
     id: NavTab;
@@ -24,15 +25,36 @@ export function BottomNav({ activeTab, onSelectTab, counts }: BottomNavProps) {
   }> = [
     { id: 'overview', label: 'Home', icon: LayoutDashboard },
     { id: 'books', label: 'Books', icon: BookOpen, badge: counts.books > 0 ? counts.books : null },
-    {
-      id: 'loans',
-      label: 'Loans',
-      icon: Repeat,
-      badge: isStaff ? (counts.overdueLoans && counts.overdueLoans > 0 ? counts.overdueLoans : counts.activeLoans) : null,
-      badgeTone: counts.overdueLoans && counts.overdueLoans > 0 ? 'danger' : undefined,
-    },
-    { id: 'members', label: 'Members', icon: Users },
-    { id: 'admin', label: 'Admin', icon: ShieldCheck },
+    ...(isStaff
+      ? [
+          {
+            id: 'loans' as NavTab,
+            label: 'Loans',
+            icon: Repeat,
+            badge:
+              counts.overdueLoans && counts.overdueLoans > 0
+                ? counts.overdueLoans
+                : counts.activeLoans,
+            badgeTone: counts.overdueLoans && counts.overdueLoans > 0 ? ('danger' as const) : undefined,
+          },
+          { id: 'members' as NavTab, label: 'Members', icon: Users },
+          isAdmin
+            ? { id: 'admin' as NavTab, label: 'Admin', icon: ShieldCheck }
+            : {
+                id: 'bookshelf' as NavTab,
+                label: 'Shelf',
+                icon: BookmarkCheck,
+                badge: counts.myLoans ?? null,
+              },
+        ]
+      : [
+          {
+            id: 'bookshelf' as NavTab,
+            label: 'Shelf',
+            icon: BookmarkCheck,
+            badge: isAuthenticated ? (counts.myLoans ?? null) : null,
+          },
+        ]),
   ];
 
   return (

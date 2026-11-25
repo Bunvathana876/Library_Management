@@ -7,6 +7,9 @@ import java.time.LocalDate;
 @Table(name = "loans")
 
 public class Loan {
+    public static final int MAX_RENEWALS = 2;
+    public static final int RENEWAL_EXTENSION_DAYS = 14;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,6 +31,12 @@ public class Loan {
     @Column(name = "returned_on")
     private LocalDate returnedOn;
 
+    @Column(name = "renewal_count", nullable = false)
+    private int renewalCount;
+
+    @Column(name = "last_renewed_on")
+    private LocalDate lastRenewedOn;
+
     protected Loan() {
         // Required by JPA
     }
@@ -42,10 +51,19 @@ public class Loan {
         this.member = member;
         this.borrowedOn = borrowedOn;
         this.dueOn = dueOn;
+        this.renewalCount = 0;
     }
 
     public void markReturned(LocalDate date) {
         this.returnedOn = date;
+    }
+
+    public void renew(LocalDate today) {
+        LocalDate reference = today != null ? today : LocalDate.now();
+        LocalDate baseDate = (this.dueOn != null && this.dueOn.isAfter(reference)) ? this.dueOn : reference;
+        this.dueOn = baseDate.plusDays(RENEWAL_EXTENSION_DAYS);
+        this.renewalCount += 1;
+        this.lastRenewedOn = reference;
     }
 
     public Long getId() {
@@ -70,5 +88,13 @@ public class Loan {
 
     public LocalDate getReturnedOn() {
         return returnedOn;
+    }
+
+    public int getRenewalCount() {
+        return renewalCount;
+    }
+
+    public LocalDate getLastRenewedOn() {
+        return lastRenewedOn;
     }
 }

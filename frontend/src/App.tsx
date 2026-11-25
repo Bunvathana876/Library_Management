@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { booksApi } from '@/api/booksApi';
 import { healthApi } from '@/api/healthApi';
+import { holdsApi } from '@/api/holdsApi';
 import { loansApi } from '@/api/loansApi';
+import { memberPortalApi } from '@/api/memberPortalApi';
 import { membersApi } from '@/api/membersApi';
 import { BookDetailModal } from '@/components/forms/BookDetailModal';
 import { BookFormModal } from '@/components/forms/BookFormModal';
 import { BorrowBookModal } from '@/components/forms/BorrowBookModal';
+import {
+  CirculationScannerModal,
+  type ScannerMode,
+} from '@/components/forms/CirculationScannerModal';
 import { MemberFormModal } from '@/components/forms/MemberFormModal';
 import { SignInModal } from '@/components/forms/SignInModal';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -20,23 +26,75 @@ import { AdminUsersPage } from '@/pages/AdminUsersPage';
 import { BooksPage } from '@/pages/BooksPage';
 import { LoansPage } from '@/pages/LoansPage';
 import { MembersPage } from '@/pages/MembersPage';
+import { MyBookshelfPage } from '@/pages/MyBookshelfPage';
 import { OverviewPage } from '@/pages/OverviewPage';
-import type { Book, HealthResponse, LoanResponse, Member } from '@/types/api';
+import type {
+  Book,
+  HealthResponse,
+  HoldResponse,
+  LoanResponse,
+  Member,
+  MemberBookshelfResponse,
+} from '@/types/api';
+import { formatCalendarDate } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
+
+const VALID_TABS: ReadonlyArray<NavTab> = [
+  'overview',
+  'books',
+  'bookshelf',
+  'loans',
+  'members',
+  'admin',
+];
 
 const TAB_PAGE_TITLES: Record<NavTab, string> = {
   overview: 'Library Overview | Athenaeum',
   books: 'Books Catalog | Athenaeum',
+  bookshelf: 'My Bookshelf | Athenaeum',
   loans: 'Loans & Returns | Athenaeum',
   members: 'Members | Athenaeum',
   admin: 'Staff & Accounts | Athenaeum',
 };
 
 function LibraryWorkspace() {
-  const { isStaff, signInModalOpen, closeSignInModal } = useAuth();
+  const { isAuthenticated, isStaff, signInModalOpen, closeSignInModal } = useAuth();
   const { notify } = useToast();
 
-  const [activeTab, setActiveTab] = useState<NavTab>('overview');
+  const getTabFromHash = useCallback((): NavTab => {
+    if (typeof window === 'undefined') return 'overview';
+    const raw = window.location.hash.replace(/^#/, '') as NavTab;
+    if (raw && VALID_TABS.includes(raw)) {
+      return raw;
+    }
+    return 'overview';
+  }, []);
+
+  const [activeTab, setActiveTabState] = useState<NavTab>(() => {
+    if (typeof window !== 'undefined') {
+      const raw = window.location.hash.replace(/^#/, '') as NavTab;
+      if (raw && VALID_TABS.includes(raw)) {
+        return raw;
+      }
+    }
+    return 'overview';
+  });
+
+  const setActiveTab = useCallback((tab: NavTab) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined' && window.location.hash !== `#${tab}`) {
+      window.location.hash = tab;
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setActiveTabState(getTabFromHash());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [getTabFromHash]);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const booksSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,7 +117,13 @@ function LibraryWorkspace() {
   const [members, setMembers] = useState<Member[]>([]);
   const [activeLoans, setActiveLoans] = useState<LoanResponse[]>([]);
   const [overdueLoans, setOverdueLoans] = useState<LoanResponse[]>([]);
+  const [activeHolds, setActiveHolds] = useState<HoldResponse[]>([]);
   const [loadingStaffData, setLoadingStaffData] = useState(false);
+
+  // Member self-service bookshelf state
+  const [bookshelf, setBookshelf] = useState<MemberBookshelfResponse | null>(null);
+  const [loadingBookshelf, setLoadingBookshelf] = useState(false);
+  const [bookshelfError, setBookshelfError] = useState<string | null>(null);
 
   // Modals & confirmations
   const [bookFormOpen, setBookFormOpen] = useState(false);
@@ -69,6 +133,8 @@ function LibraryWorkspace() {
   const [borrowPreselectBookId, setBorrowPreselectBookId] = useState<number | null>(null);
   const [borrowPreselectMemberId, setBorrowPreselectMemberId] = useState<number | null>(null);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState<ScannerMode>('checkout');
 
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [returningLoan, setReturningLoan] = useState<LoanResponse | null>(null);
@@ -81,7 +147,7 @@ function LibraryWorkspace() {
         booksSearchInputRef.current?.focus();
       });
     });
-  }, []);
+  }, [setActiveTab]);
 
   // Global "/" and Cmd/Ctrl+K shortcut to jump to catalog search
   useEffect(() => {
@@ -156,19 +222,22 @@ function LibraryWorkspace() {
         setMembers([]);
         setActiveLoans([]);
         setOverdueLoans([]);
+        setActiveHolds([]);
         return;
       }
 
       setLoadingStaffData(true);
       try {
-        const [memberList, activeList, overdueList] = await Promise.all([
+        const [memberList, activeList, overdueList, holdList] = await Promise.all([
           membersApi.listMembers(signal),
           loansApi.getActiveLoans(signal),
           loansApi.getOverdueLoans(signal),
+          holdsApi.getActiveHolds(signal),
         ]);
         setMembers(memberList);
         setActiveLoans(activeList);
         setOverdueLoans(overdueList);
+        setActiveHolds(holdList);
       } catch (err) {
         if (!signal?.aborted) {
           notify({
@@ -185,6 +254,35 @@ function LibraryWorkspace() {
     },
     [isStaff, notify],
   );
+
+  const fetchBookshelf = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!isAuthenticated) {
+        setBookshelf(null);
+        setBookshelfError(null);
+        return;
+      }
+      setLoadingBookshelf(true);
+      setBookshelfError(null);
+      try {
+        const data = await memberPortalApi.getBookshelf(signal);
+        setBookshelf(data);
+      } catch (err) {
+        if (!signal?.aborted) {
+          setBookshelfError(formatApiErrorMessage(err));
+        }
+      } finally {
+        if (!signal?.aborted) {
+          setLoadingBookshelf(false);
+        }
+      }
+    },
+    [isAuthenticated],
+  );
+
+  const refreshAllCirculation = useCallback(async () => {
+    await Promise.all([fetchBooks(debouncedSearch), fetchStaffData(), fetchBookshelf()]);
+  }, [fetchBooks, debouncedSearch, fetchStaffData, fetchBookshelf]);
 
   // Initial & polled health check
   useEffect(() => {
@@ -213,6 +311,13 @@ function LibraryWorkspace() {
     return () => controller.abort();
   }, [fetchStaffData]);
 
+  // Fetch patron bookshelf whenever auth status changes
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchBookshelf(controller.signal);
+    return () => controller.abort();
+  }, [fetchBookshelf]);
+
   const handleOpenAddBook = () => {
     setEditingBook(null);
     setBookFormOpen(true);
@@ -227,6 +332,88 @@ function LibraryWorkspace() {
     setBorrowPreselectBookId(opts?.bookId ?? null);
     setBorrowPreselectMemberId(opts?.memberId ?? null);
     setBorrowModalOpen(true);
+  };
+
+  const handleOpenScanner = (mode: ScannerMode = 'checkout') => {
+    setScannerMode(mode);
+    setScannerOpen(true);
+  };
+
+  const handleRenewLoan = async (loan: LoanResponse, selfService: boolean) => {
+    try {
+      const updated = selfService
+        ? await memberPortalApi.renewOwnLoan(loan.id)
+        : await loansApi.renewLoan(loan.id);
+      await refreshAllCirculation();
+      notify({
+        variant: 'success',
+        title: 'Loan renewed (+14 days)',
+        message: `"${updated.bookTitle}" is now due ${formatCalendarDate(updated.dueOn)} (${updated.renewalCount}/${updated.maxRenewals} renewals used).`,
+      });
+    } catch (err) {
+      await refreshAllCirculation();
+      notify({
+        variant: 'error',
+        title: 'Renewal unavailable',
+        message: formatApiErrorMessage(err),
+      });
+    }
+  };
+
+  const handlePlaceHold = async (book: Book) => {
+    try {
+      const hold = await holdsApi.placeHold({ bookId: book.id });
+      await refreshAllCirculation();
+      notify({
+        variant: 'success',
+        title: 'Hold placed',
+        message: `You are #${hold.queuePosition} in queue for "${hold.bookTitle}".`,
+      });
+    } catch (err) {
+      await refreshAllCirculation();
+      notify({
+        variant: 'error',
+        title: 'Could not place hold',
+        message: formatApiErrorMessage(err),
+      });
+    }
+  };
+
+  const handleCancelHold = async (hold: HoldResponse) => {
+    try {
+      await holdsApi.cancelHold(hold.id);
+      await refreshAllCirculation();
+      notify({
+        variant: 'info',
+        title: 'Hold cancelled',
+        message: `Cancelled reservation for "${hold.bookTitle}".`,
+      });
+    } catch (err) {
+      notify({
+        variant: 'error',
+        title: 'Cancel failed',
+        message: formatApiErrorMessage(err),
+      });
+    }
+  };
+
+  const handleFulfillHold = async (hold: HoldResponse) => {
+    try {
+      const loan = await holdsApi.fulfillHold(hold.id);
+      await refreshAllCirculation();
+      notify({
+        variant: 'success',
+        title: 'Hold checked out',
+        message: `"${loan.bookTitle}" issued to ${loan.memberName} (due ${formatCalendarDate(loan.dueOn)}).`,
+      });
+    } catch (err) {
+      await refreshAllCirculation();
+      notify({
+        variant: 'error',
+        title: 'Fulfillment failed',
+        message: formatApiErrorMessage(err),
+      });
+    }
   };
 
   const handleConfirmDeleteBook = async () => {
@@ -260,12 +447,20 @@ function LibraryWorkspace() {
     try {
       const updated = await loansApi.returnBook(returningLoan.id);
       setReturningLoan(null);
-      await Promise.all([fetchBooks(debouncedSearch), fetchStaffData()]);
-      notify({
-        variant: 'success',
-        title: 'Book returned',
-        message: `Loan #${updated.id} ("${updated.bookTitle}") marked returned.`,
-      });
+      await refreshAllCirculation();
+      if (updated.heldForMemberName) {
+        notify({
+          variant: 'info',
+          title: 'Book returned & reserved at desk',
+          message: `"${updated.bookTitle}" is held at the circulation desk for ${updated.heldForMemberName} (3-day pickup window).`,
+        });
+      } else {
+        notify({
+          variant: 'success',
+          title: 'Book returned',
+          message: `Loan #${updated.id} ("${updated.bookTitle}") marked returned.`,
+        });
+      }
     } catch (err) {
       setReturningLoan(null);
       notify({
@@ -277,6 +472,8 @@ function LibraryWorkspace() {
       setConfirmBusy(false);
     }
   };
+
+  const myLoansCount = isAuthenticated ? (bookshelf?.activeLoans.length ?? 0) : null;
 
   return (
     <div className="app-shell">
@@ -291,6 +488,7 @@ function LibraryWorkspace() {
         onCloseMobile={() => setMobileMenuOpen(false)}
         counts={{
           books: books.length,
+          myLoans: myLoansCount,
           activeLoans: isStaff ? activeLoans.length : null,
           overdueLoans: isStaff ? overdueLoans.length : null,
           members: isStaff ? members.length : null,
@@ -309,6 +507,7 @@ function LibraryWorkspace() {
           onOpenAddBook={handleOpenAddBook}
           onOpenBorrowBook={() => handleOpenBorrow()}
           onOpenRegisterMember={() => setMemberModalOpen(true)}
+          onOpenScanner={() => handleOpenScanner('checkout')}
         />
 
         <main id="main-content" tabIndex={-1} className="page-content">
@@ -318,6 +517,7 @@ function LibraryWorkspace() {
               activeLoans={activeLoans}
               overdueLoans={overdueLoans}
               members={members}
+              bookshelf={bookshelf}
               loadingBooks={loadingBooks}
               booksError={booksError}
               onRetryBooks={() => void fetchBooks(debouncedSearch)}
@@ -325,6 +525,7 @@ function LibraryWorkspace() {
               onInspectBook={setInspectBookId}
               onOpenAddBook={handleOpenAddBook}
               onOpenBorrowBook={() => handleOpenBorrow()}
+              onOpenScanner={() => handleOpenScanner('checkout')}
               onOpenRegisterMember={() => setMemberModalOpen(true)}
               onRequestReturnLoan={setReturningLoan}
             />
@@ -333,6 +534,7 @@ function LibraryWorkspace() {
           {activeTab === 'books' ? (
             <BooksPage
               books={books}
+              myActiveHolds={bookshelf?.activeHolds ?? []}
               searchQuery={bookSearch}
               onSearchChange={setBookSearch}
               searchInputRef={booksSearchInputRef}
@@ -344,6 +546,20 @@ function LibraryWorkspace() {
               onDeleteBook={setDeletingBook}
               onInspectBook={setInspectBookId}
               onBorrowBook={(book) => handleOpenBorrow({ bookId: book.id })}
+              onPlaceHold={handlePlaceHold}
+            />
+          ) : null}
+
+          {activeTab === 'bookshelf' ? (
+            <MyBookshelfPage
+              bookshelf={bookshelf}
+              loading={loadingBookshelf}
+              errorMsg={bookshelfError}
+              onRetry={() => void fetchBookshelf()}
+              onRenewLoan={(loan) => handleRenewLoan(loan, true)}
+              onCancelHold={handleCancelHold}
+              onInspectBook={setInspectBookId}
+              onBrowseCatalog={() => setActiveTab('books')}
             />
           ) : null}
 
@@ -351,9 +567,14 @@ function LibraryWorkspace() {
             <LoansPage
               activeLoans={activeLoans}
               overdueLoans={overdueLoans}
+              activeHolds={activeHolds}
               loading={loadingStaffData}
               onBorrowBook={() => handleOpenBorrow()}
+              onOpenScanner={handleOpenScanner}
               onRequestReturnLoan={setReturningLoan}
+              onRenewLoan={(loan) => handleRenewLoan(loan, false)}
+              onFulfillHold={handleFulfillHold}
+              onCancelHold={handleCancelHold}
             />
           ) : null}
 
@@ -376,6 +597,7 @@ function LibraryWorkspace() {
         onSelectTab={setActiveTab}
         counts={{
           books: books.length,
+          myLoans: myLoansCount,
           activeLoans: isStaff ? activeLoans.length : null,
           overdueLoans: isStaff ? overdueLoans.length : null,
         }}
@@ -388,28 +610,40 @@ function LibraryWorkspace() {
         open={bookFormOpen}
         editingBook={editingBook}
         onClose={() => setBookFormOpen(false)}
-        onSaved={() => void fetchBooks(debouncedSearch)}
+        onSaved={() => void refreshAllCirculation()}
       />
 
       <BookDetailModal
         bookId={inspectBookId}
+        myActiveHolds={bookshelf?.activeHolds ?? []}
         onClose={() => setInspectBookId(null)}
         onEdit={handleOpenEditBook}
         onBorrow={(book) => handleOpenBorrow({ bookId: book.id })}
         onDelete={setDeletingBook}
+        onPlaceHold={handlePlaceHold}
       />
 
       <BorrowBookModal
         open={borrowModalOpen}
         books={books}
         members={members}
+        activeHolds={activeHolds}
         initialBookId={borrowPreselectBookId}
         initialMemberId={borrowPreselectMemberId}
         onClose={() => setBorrowModalOpen(false)}
-        onBorrowed={() => {
-          void fetchBooks(debouncedSearch);
-          void fetchStaffData();
-        }}
+        onBorrowed={() => void refreshAllCirculation()}
+        onOpenScanner={() => handleOpenScanner('checkout')}
+      />
+
+      <CirculationScannerModal
+        open={scannerOpen}
+        initialMode={scannerMode}
+        books={books}
+        members={members}
+        activeLoans={activeLoans}
+        activeHolds={activeHolds}
+        onClose={() => setScannerOpen(false)}
+        onCompleted={() => void refreshAllCirculation()}
       />
 
       <MemberFormModal
