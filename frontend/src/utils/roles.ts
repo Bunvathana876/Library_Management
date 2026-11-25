@@ -12,6 +12,10 @@ export function isStaff(roles: readonly UserRole[] | undefined): boolean {
   return hasRole(roles, 'ADMIN') || hasRole(roles, 'LIBRARIAN');
 }
 
+export function isMemberOnly(roles: readonly UserRole[] | undefined): boolean {
+  return hasRole(roles, 'MEMBER') && !isStaff(roles);
+}
+
 export function getPrimaryRole(roles: readonly UserRole[] | undefined): UserRole | 'GUEST' {
   if (hasRole(roles, 'ADMIN')) return 'ADMIN';
   if (hasRole(roles, 'LIBRARIAN')) return 'LIBRARIAN';

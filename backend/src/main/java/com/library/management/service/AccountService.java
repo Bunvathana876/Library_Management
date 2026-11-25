@@ -19,13 +19,16 @@ public class AccountService {
 
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
+    private final MemberService memberService;
 
     public AccountService(
             AppUserRepository users,
-            PasswordEncoder encoder
+            PasswordEncoder encoder,
+            MemberService memberService
     ) {
         this.users = users;
         this.encoder = encoder;
+        this.memberService = memberService;
     }
 
     @Transactional
@@ -56,10 +59,26 @@ public class AccountService {
 
         AppUser saved = users.save(user);
 
+        if (saved.getRole() == UserRole.MEMBER) {
+            memberService.ensureMemberForEmail(email, request.fullName());
+        }
+
         return new AccountResponse(
             saved.getId(),
             saved.getEmail(),
             saved.getRole()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<AccountResponse> getAllUsers() {
+        return users.findAll(org.springframework.data.domain.Sort.by("id"))
+            .stream()
+            .map(u -> new AccountResponse(
+                u.getId(),
+                u.getEmail(),
+                u.getRole()
+            ))
+            .toList();
     }
 }

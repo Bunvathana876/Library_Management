@@ -3,6 +3,7 @@ package com.library.management;
 import com.library.management.model.AppUser;
 import com.library.management.model.UserRole;
 import com.library.management.repository.AppUserRepository;
+import com.library.management.repository.MemberRepository;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,9 @@ class SecurityIntegrationTest {
     private AppUserRepository appUserRepository;
 
     @Autowired
+    private MemberRepository memberRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -71,6 +75,8 @@ class SecurityIntegrationTest {
 
     private void cleanupTestUsers() {
         for (String email : TEST_EMAILS) {
+            memberRepository.findByEmailIgnoreCase(email)
+                .ifPresent(memberRepository::delete);
             appUserRepository.findByEmail(email)
                 .ifPresent(appUserRepository::delete);
         }
@@ -194,6 +200,16 @@ class SecurityIntegrationTest {
 
         HttpResponse<String> forbidden = send("POST", "/api/admin/users", createLibrarianPayload, librarianToken);
         assertEquals(403, forbidden.statusCode());
+
+        // Verify GET /api/admin/users retrieves the created account list
+        HttpResponse<String> listAsAdmin = send("GET", "/api/admin/users", null, adminToken);
+        assertEquals(200, listAsAdmin.statusCode());
+        JsonNode usersList = objectMapper.readTree(listAsAdmin.body());
+        assertTrue(usersList.isArray());
+        assertTrue(usersList.size() >= 3);
+
+        HttpResponse<String> listAsLibrarian = send("GET", "/api/admin/users", null, librarianToken);
+        assertEquals(403, listAsLibrarian.statusCode());
     }
 
     @Test
@@ -204,6 +220,10 @@ class SecurityIntegrationTest {
 
         assertEquals(200, send("GET", "/api/members", null, librarianToken).statusCode());
         assertEquals(403, send("GET", "/api/members", null, memberToken).statusCode());
+        assertEquals(200, send("GET", "/api/me/bookshelf", null, memberToken).statusCode());
+        assertEquals(401, send("GET", "/api/me/bookshelf", null, null).statusCode());
+        assertEquals(403, send("GET", "/api/holds/active", null, memberToken).statusCode());
+        assertEquals(200, send("GET", "/api/holds/active", null, librarianToken).statusCode());
         assertEquals(405, send("GET", "/api/loans", null, adminToken).statusCode());
         assertEquals(403, send("GET", "/error", null, adminToken).statusCode());
     }

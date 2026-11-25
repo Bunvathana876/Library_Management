@@ -13,3 +13,22 @@ interface HTMLElement {
   showPopover?: () => void;
   hidePopover?: () => void;
 }
+
+interface DetectedBarcode {
+  rawValue: string;
+  format?: string;
+}
+
+interface BarcodeDetectorOptions {
+  formats?: string[];
+}
+
+declare class BarcodeDetector {
+  constructor(options?: BarcodeDetectorOptions);
+  static getSupportedFormats(): Promise<string[]>;
+  detect(image: ImageBitmapSource): Promise<DetectedBarcode[]>;
+}
+
+interface Window {
+  BarcodeDetector?: typeof BarcodeDetector;
+}

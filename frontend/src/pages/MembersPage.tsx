@@ -1,11 +1,13 @@
 import { useId, useMemo, useState } from 'react';
-import { Lock, LogIn, Repeat, Search, UserPlus, Users, X } from 'lucide-react';
+import { Lock, LogIn, QrCode, Repeat, Search, UserPlus, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ModalDialog } from '@/components/ui/ModalDialog';
+import { QrCodeCanvas } from '@/components/ui/QrCodeCanvas';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { LoanResponse, Member } from '@/types/api';
-import { getInitials } from '@/utils/formatting';
+import { formatMemberCardCode, getInitials } from '@/utils/formatting';
 
 interface MembersPageProps {
   members: Member[];
@@ -25,6 +27,7 @@ export function MembersPage({
   const { isAuthenticated, isStaff, openSignInModal } = useAuth();
   const tableCaptionId = useId();
   const [search, setSearch] = useState('');
+  const [qrMember, setQrMember] = useState<Member | null>(null);
 
   const loanStatsByMember = useMemo(() => {
     const map = new Map<number, { active: number; overdue: number }>();
@@ -80,7 +83,7 @@ export function MembersPage({
             className="input-control"
             enterKeyHint="search"
             aria-label="Search members by name, email, or ID"
-            placeholder="Search members by name, email, or #ID…"
+            placeholder="Search by name, email, or member ID"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -95,11 +98,6 @@ export function MembersPage({
             </button>
           ) : null}
         </div>
-
-        <button type="button" className="btn btn-primary btn-sm" onClick={onRegisterMember}>
-          <UserPlus size={15} aria-hidden="true" />
-          <span>Register Member</span>
-        </button>
       </section>
 
       {loading && members.length === 0 ? (
@@ -132,8 +130,7 @@ export function MembersPage({
             <div>
               <h2 className="card-title">Registered Borrowers</h2>
               <p className="card-subtitle">
-                {filteredMembers.length} member{filteredMembers.length === 1 ? '' : 's'} synchronized
-                with <code>/api/members</code>
+                {filteredMembers.length} registered borrower{filteredMembers.length === 1 ? '' : 's'}
               </p>
             </div>
           </div>
@@ -177,7 +174,9 @@ export function MembersPage({
                           </span>
                           <div>
                             <div>{member.fullName}</div>
-                            <div className="mono table-subline">Member #{member.id}</div>
+                            <div className="mono table-subline">
+                              {formatMemberCardCode(member.id)} · Member #{member.id}
+                            </div>
                           </div>
                         </div>
                       </th>
@@ -193,14 +192,26 @@ export function MembersPage({
                         )}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => onBorrowForMember(member)}
-                        >
-                          <Repeat size={14} aria-hidden="true" />
-                          <span>Borrow Book</span>
-                        </button>
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            aria-label={`Show QR pass for ${member.fullName}`}
+                            onClick={() => setQrMember(member)}
+                          >
+                            <QrCode size={14} aria-hidden="true" />
+                            <span>QR Pass</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            aria-label={`Borrow Book for ${member.fullName}`}
+                            onClick={() => onBorrowForMember(member)}
+                          >
+                            <Repeat size={14} aria-hidden="true" />
+                            <span>Borrow Book</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -210,6 +221,39 @@ export function MembersPage({
           </div>
         </section>
       )}
+
+      <ModalDialog
+        open={qrMember !== null}
+        onClose={() => setQrMember(null)}
+        size="sm"
+        title={qrMember ? qrMember.fullName : 'Member Pass'}
+        subtitle={
+          qrMember
+            ? `${formatMemberCardCode(qrMember.id)} · ${qrMember.email}`
+            : undefined
+        }
+      >
+        <div className="modal-body form-stack" style={{ alignItems: 'center', textAlign: 'center' }}>
+          {qrMember ? (
+            <>
+              <QrCodeCanvas
+                value={formatMemberCardCode(qrMember.id)}
+                size={164}
+                label={`Member QR code ${formatMemberCardCode(qrMember.id)}`}
+              />
+              <p className="field-hint">
+                Scan this code in the Circulation Camera Scanner to select{' '}
+                <strong>{qrMember.fullName}</strong> during checkout.
+              </p>
+            </>
+          ) : null}
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick={() => setQrMember(null)}>
+            Close
+          </button>
+        </div>
+      </ModalDialog>
     </>
   );
 }

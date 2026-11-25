@@ -2,6 +2,14 @@ export function formatCallNumber(bookId: number): string {
   return `CAT-${String(Math.max(0, bookId)).padStart(4, '0')}`;
 }
 
+export function formatMemberCardCode(memberId: number): string {
+  return `MEM-${String(Math.max(0, memberId)).padStart(4, '0')}`;
+}
+
+export function formatLoanCode(loanId: number): string {
+  return `LOAN-${String(Math.max(0, loanId)).padStart(4, '0')}`;
+}
+
 export function getInitials(fullName: string): string {
   const parts = fullName
     .trim()

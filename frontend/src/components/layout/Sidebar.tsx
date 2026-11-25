@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import {
+  BookmarkCheck,
   BookOpen,
   LayoutDashboard,
   Lock,
@@ -17,7 +18,7 @@ import { formatRoleLabel, getPrimaryRole } from '@/utils/roles';
 import { BrandMark } from '@/components/ui/BrandMark';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
-export type NavTab = 'overview' | 'books' | 'loans' | 'members' | 'admin';
+export type NavTab = 'overview' | 'books' | 'bookshelf' | 'loans' | 'members' | 'admin';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -26,6 +27,7 @@ interface SidebarProps {
   onCloseMobile: () => void;
   counts: {
     books: number;
+    myLoans?: number | null;
     activeLoans: number | null;
     overdueLoans: number | null;
     members: number | null;
@@ -73,10 +75,17 @@ export function Sidebar({
       items: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'books', label: 'Books Catalog', icon: BookOpen, count: counts.books },
+        {
+          id: 'bookshelf',
+          label: 'My Bookshelf',
+          icon: BookmarkCheck,
+          count: isAuthenticated ? counts.myLoans : null,
+          locked: !isAuthenticated,
+        },
       ],
     },
     {
-      title: 'Circulation Desk',
+      title: 'Circulation desk',
       items: [
         {
           id: 'loans',
@@ -125,7 +134,7 @@ export function Sidebar({
         id="app-sidebar"
         className="sidebar"
         data-open={mobileOpen ? 'true' : 'false'}
-        aria-label="Primary navigation"
+        aria-label="Workspace sidebar"
       >
         <div className="sidebar-top">
           <div className="brand-block">
@@ -133,7 +142,7 @@ export function Sidebar({
               <BrandMark size={40} />
               <div>
                 <div className="brand-name">Athenaeum</div>
-                <div className="brand-tagline">Library Operations Studio</div>
+                <div className="brand-tagline">Library Management</div>
               </div>
             </div>
             <button
@@ -207,17 +216,19 @@ export function Sidebar({
         <div className="sidebar-footer">
           {isAuthenticated && user ? (
             <div className="sidebar-user-compact">
-              <div className="user-panel-email" title={user.email}>
-                {user.email}
+              <div className="sidebar-user-row">
+                <div className="user-panel-email" title={user.email}>
+                  {user.email}
+                </div>
+                <span className="sidebar-user-timer mono" title="JWT access token time remaining">
+                  {formatDurationSeconds(remainingSeconds)}
+                </span>
               </div>
               <div className="sidebar-user-row">
                 <span className="sidebar-user-meta">
                   <StatusBadge tone={isAdmin ? 'info' : isStaff ? 'success' : 'neutral'} dot={false}>
                     {formatRoleLabel(primaryRole)}
                   </StatusBadge>
-                  <span className="mono" title="JWT access token time remaining">
-                    {formatDurationSeconds(remainingSeconds)}
-                  </span>
                 </span>
                 <button type="button" className="sidebar-auth-link" onClick={logout}>
                   <LogOut size={14} aria-hidden="true" />

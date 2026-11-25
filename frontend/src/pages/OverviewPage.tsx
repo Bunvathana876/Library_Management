@@ -2,25 +2,27 @@ import {
   AlertTriangle,
   ArrowRight,
   BookCheck,
+  BookmarkCheck,
   BookOpen,
+  Camera,
   KeyRound,
   LibraryBig,
   LogIn,
   Plus,
   Repeat,
   ShieldCheck,
-  Sparkles,
   UserPlus,
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { AvailabilityGauge } from '@/components/ui/AvailabilityGauge';
+import { BookCoverImage } from '@/components/ui/BookCoverImage';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatCardSkeleton, TableSkeleton } from '@/components/ui/Skeleton';
 import { StatCard } from '@/components/ui/StatCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { NavTab } from '@/components/layout/Sidebar';
-import type { Book, LoanResponse, Member } from '@/types/api';
+import type { Book, LoanResponse, Member, MemberBookshelfResponse } from '@/types/api';
 import { describeLoanSchedule, formatCalendarDate } from '@/utils/dates';
 import { formatCallNumber } from '@/utils/formatting';
 import { formatRoleLabel, getPrimaryRole } from '@/utils/roles';
@@ -30,6 +32,7 @@ interface OverviewPageProps {
   activeLoans: LoanResponse[];
   overdueLoans: LoanResponse[];
   members: Member[];
+  bookshelf?: MemberBookshelfResponse | null;
   loadingBooks: boolean;
   booksError?: string | null;
   onRetryBooks?: () => void;
@@ -37,24 +40,17 @@ interface OverviewPageProps {
   onInspectBook: (bookId: number) => void;
   onOpenAddBook: () => void;
   onOpenBorrowBook: () => void;
+  onOpenScanner?: () => void;
   onOpenRegisterMember: () => void;
   onRequestReturnLoan: (loan: LoanResponse) => void;
 }
-
-const COVER_ACCENTS = [
-  'var(--spine-1)',
-  'var(--spine-2)',
-  'var(--spine-3)',
-  'var(--spine-4)',
-  'var(--spine-5)',
-  'var(--spine-6)',
-];
 
 export function OverviewPage({
   books,
   activeLoans,
   overdueLoans,
   members,
+  bookshelf = null,
   loadingBooks,
   booksError = null,
   onRetryBooks,
@@ -62,6 +58,7 @@ export function OverviewPage({
   onInspectBook,
   onOpenAddBook,
   onOpenBorrowBook,
+  onOpenScanner,
   onOpenRegisterMember,
   onRequestReturnLoan,
 }: OverviewPageProps) {
@@ -82,47 +79,25 @@ export function OverviewPage({
   return (
     <>
       <section className="hero-banner stagger-enter" aria-label="Workspace summary">
-        <svg
-          className="hero-bg-curves"
-          viewBox="0 0 1200 260"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0,185 C260,120 480,255 820,175 C985,135 1100,155 1200,115 L1200,260 L0,260 Z"
-            fill="currentColor"
-            opacity="0.065"
-          />
-          <circle cx="960" cy="48" r="150" fill="currentColor" opacity="0.05" />
-        </svg>
-
         <div className="hero-content">
           <div className="hero-eyebrow">
-            <Sparkles size={13} aria-hidden="true" />
             <span>
-              {isAuthenticated
-                ? `${formatRoleLabel(primaryRole)} Workspace`
-                : 'Public Catalog Explorer'}
+              {isAuthenticated && user
+                ? `${formatRoleLabel(primaryRole)} desk · ${user.email}`
+                : 'Public catalog access'}
             </span>
           </div>
 
           <h2 className="hero-heading">
-            {isAuthenticated && user ? (
-              <>
-                Welcome back, <span className="hero-heading-accent">{user.email}</span>
-              </>
-            ) : (
-              <>
-                Curated Library Catalog &amp;{' '}
-                <span className="hero-heading-accent">Circulation Desk</span>
-              </>
-            )}
+            {isStaff
+              ? 'Library Operations & Circulation'
+              : 'Athenaeum Collection & Circulation Desk'}
           </h2>
 
           <p className="hero-copy">
             {isStaff
-              ? 'Manage volumes, register borrowers, issue 14-day loans, and resolve overdue returns directly against your Spring Boot API.'
-              : 'Browse real-time book availability across the collection. Sign in with a Librarian or Admin account to manage circulation and members.'}
+              ? 'Manage catalog titles, member profiles, 14-day loans, and overdue returns'
+              : 'Browse real-time shelf availability across the collection, or sign in with staff credentials to manage loans'}
           </p>
 
           <div className="hero-actions">
@@ -131,22 +106,25 @@ export function OverviewPage({
               <span>Browse Catalog</span>
             </button>
             {isStaff ? (
-              <>
-                <button type="button" className="btn btn-hero-outline" onClick={onOpenAddBook}>
-                  <Plus size={16} aria-hidden="true" />
-                  <span>Add Book</span>
-                </button>
-                <button type="button" className="btn btn-hero-outline" onClick={onOpenBorrowBook}>
-                  <Repeat size={16} aria-hidden="true" />
-                  <span>Issue Loan</span>
-                </button>
-              </>
-            ) : !isAuthenticated ? (
+              <button type="button" className="btn btn-hero-outline" onClick={onOpenBorrowBook}>
+                <Repeat size={16} aria-hidden="true" />
+                <span>Issue Loan</span>
+              </button>
+            ) : isAuthenticated ? (
+              <button
+                type="button"
+                className="btn btn-hero-outline"
+                onClick={() => onNavigate('bookshelf')}
+              >
+                <BookmarkCheck size={16} aria-hidden="true" />
+                <span>My Bookshelf</span>
+              </button>
+            ) : (
               <button type="button" className="btn btn-hero-outline" onClick={openSignInModal}>
                 <LogIn size={16} aria-hidden="true" />
-                <span>Sign In to Staff Desk</span>
+                <span>Sign In</span>
               </button>
-            ) : null}
+            )}
           </div>
         </div>
 
@@ -171,9 +149,8 @@ export function OverviewPage({
             staggerIndex={0}
             label="Total Catalog Books"
             value={books.length}
-            foot="Indexed via GET /api/books"
-            icon={<BookOpen size={20} />}
-            watermark={<BookOpen size={90} strokeWidth={1.35} />}
+            foot="Titles currently cataloged"
+            icon={<BookOpen size={16} />}
             tone="accent"
           />
           <StatCard
@@ -181,9 +158,7 @@ export function OverviewPage({
             label="Available on Shelf"
             value={availableCount}
             foot={books.length > 0 ? `${availPercent}% ready to borrow` : 'No titles in catalog'}
-            progress={books.length > 0 ? availPercent : 0}
-            icon={<LibraryBig size={20} />}
-            watermark={<LibraryBig size={90} strokeWidth={1.35} />}
+            icon={<LibraryBig size={16} />}
             tone="success"
           />
           <StatCard
@@ -191,8 +166,7 @@ export function OverviewPage({
             label={isStaff ? 'Active Loans' : 'Checked Out Copies'}
             value={isStaff ? activeLoans.length : checkedOutCount}
             foot={isStaff ? 'Currently out on 14-day term' : 'Currently borrowed by members'}
-            icon={<Repeat size={20} />}
-            watermark={<Repeat size={90} strokeWidth={1.35} />}
+            icon={<Repeat size={16} />}
             tone="warning"
           />
           <StatCard
@@ -208,16 +182,9 @@ export function OverviewPage({
             }
             icon={
               isStaff && overdueLoans.length > 0 ? (
-                <AlertTriangle size={20} />
+                <AlertTriangle size={16} />
               ) : (
-                <Users size={20} />
-              )
-            }
-            watermark={
-              isStaff && overdueLoans.length > 0 ? (
-                <AlertTriangle size={90} strokeWidth={1.35} />
-              ) : (
-                <Users size={90} strokeWidth={1.35} />
+                <Users size={16} />
               )
             }
             tone={isStaff && overdueLoans.length > 0 ? 'danger' : 'info'}
@@ -229,18 +196,13 @@ export function OverviewPage({
         <div className="two-col-grid">
           <section className="card" aria-labelledby="priority-loans-heading">
             <div className="card-header">
-              <div className="card-header-with-icon">
-                <span className="section-icon-badge" aria-hidden="true">
-                  <Repeat size={18} />
-                </span>
-                <div>
-                  <h3 id="priority-loans-heading" className="card-title">
-                    Circulation Queue
-                  </h3>
-                  <p className="card-subtitle">
-                    Overdue returns appear first, followed by active upcoming due dates
-                  </p>
-                </div>
+              <div>
+                <h3 id="priority-loans-heading" className="card-title">
+                  Circulation Queue
+                </h3>
+                <p className="card-subtitle">
+                  Overdue returns appear first, followed by upcoming due dates
+                </p>
               </div>
               <button
                 type="button"
@@ -289,6 +251,7 @@ export function OverviewPage({
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
+                      aria-label={`Return Book: ${loan.bookTitle}`}
                       onClick={() => onRequestReturnLoan(loan)}
                     >
                       Return Book
@@ -314,18 +277,11 @@ export function OverviewPage({
               className="card card-padded form-stack"
               aria-labelledby="quick-actions-heading"
             >
-              <div className="card-header-with-icon">
-                <span className="section-icon-badge" aria-hidden="true">
-                  <ShieldCheck size={18} />
-                </span>
-                <div>
-                  <h3 id="quick-actions-heading" className="card-title">
-                    Quick Staff Operations
-                  </h3>
-                  <p className="card-subtitle">
-                    Common workflows mapped directly to Spring Boot endpoints
-                  </p>
-                </div>
+              <div>
+                <h3 id="quick-actions-heading" className="card-title">
+                  Quick Staff Operations
+                </h3>
+                <p className="card-subtitle">Common circulation desk workflows</p>
               </div>
 
               <div className="form-stack" style={{ gap: '0.6rem' }}>
@@ -340,6 +296,20 @@ export function OverviewPage({
                   </span>
                   <ArrowRight size={15} aria-hidden="true" />
                 </button>
+
+                {onOpenScanner ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary quick-op-btn"
+                    onClick={onOpenScanner}
+                  >
+                    <span className="quick-op-label">
+                      <Camera size={16} aria-hidden="true" />
+                      <span>Camera Barcode / QR Scanner</span>
+                    </span>
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </button>
+                ) : null}
 
                 <button
                   type="button"
@@ -386,18 +356,13 @@ export function OverviewPage({
         <div className="two-col-grid">
           <section className="card" aria-labelledby="featured-books-heading">
             <div className="card-header">
-              <div className="card-header-with-icon">
-                <span className="section-icon-badge" aria-hidden="true">
-                  <BookOpen size={18} />
-                </span>
-                <div>
-                  <h3 id="featured-books-heading" className="card-title">
-                    Recent Catalog Highlights
-                  </h3>
-                  <p className="card-subtitle">
-                    Inspect live availability across the library shelf
-                  </p>
-                </div>
+              <div>
+                <h3 id="featured-books-heading" className="card-title">
+                  Recent Catalog Highlights
+                </h3>
+                <p className="card-subtitle">
+                  Current availability across recent shelf additions
+                </p>
               </div>
               <button
                 type="button"
@@ -433,43 +398,41 @@ export function OverviewPage({
               />
             ) : (
               <div className="queue-list">
-                {featuredBooks.map((book) => {
-                  const coverColor = COVER_ACCENTS[book.id % COVER_ACCENTS.length];
-                  return (
-                    <div key={book.id} className="highlight-row">
-                      <div className="highlight-lead">
-                        <span
-                          className="book-mini-cover"
-                          style={{ ['--cover-accent' as string]: coverColor }}
-                          aria-hidden="true"
-                        >
-                          <BookOpen size={16} />
-                        </span>
-                        <div className="queue-row-main">
-                          <span className="mono catalog-id-badge">
-                            {formatCallNumber(book.id)}
-                          </span>
-                          <div className="highlight-title">{book.title}</div>
-                          <div className="queue-row-sub">
-                            {book.author} · {book.publicationYear}
-                          </div>
+                {featuredBooks.map((book) => (
+                  <div key={book.id} className="highlight-row">
+                    <div className="highlight-lead">
+                      <div className="highlight-cover-thumb" aria-hidden="true">
+                        <BookCoverImage
+                          book={book}
+                          width={80}
+                          height={104}
+                          loading="lazy"
+                          className="highlight-cover-img"
+                        />
+                      </div>
+                      <div className="queue-row-main">
+                        <span className="mono catalog-id-badge">{formatCallNumber(book.id)}</span>
+                        <div className="highlight-title">{book.title}</div>
+                        <div className="queue-row-sub">
+                          {book.author} · {book.publicationYear}
                         </div>
                       </div>
-                      <div className="row-actions">
-                        <StatusBadge tone={book.available ? 'success' : 'warning'}>
-                          {book.available ? 'Available' : 'Borrowed'}
-                        </StatusBadge>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => onInspectBook(book.id)}
-                        >
-                          Details
-                        </button>
-                      </div>
                     </div>
-                  );
-                })}
+                    <div className="row-actions">
+                      <StatusBadge tone={book.available ? 'success' : 'warning'}>
+                        {book.available ? 'Available' : 'Borrowed'}
+                      </StatusBadge>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        aria-label={`Details: ${book.title}`}
+                        onClick={() => onInspectBook(book.id)}
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </section>
@@ -489,31 +452,47 @@ export function OverviewPage({
               className="card card-padded form-stack"
               aria-labelledby="access-overview-heading"
             >
-              <div className="card-header-with-icon">
-                <span className="section-icon-badge" aria-hidden="true">
-                  <ShieldCheck size={18} />
-                </span>
-                <div>
-                  <h3 id="access-overview-heading" className="card-title">
-                    Role-Based Access
-                  </h3>
-                  <p className="card-subtitle">Enforced by Spring Security JWT permissions</p>
-                </div>
+              <div>
+                <h3 id="access-overview-heading" className="card-title">
+                  Role-Based Access
+                </h3>
+                <p className="card-subtitle">Permissions by account role</p>
               </div>
 
               <div className="access-info-panel">
                 <KeyRound size={18} aria-hidden="true" className="access-key-icon" />
                 <span>
-                  <strong>Public &amp; Member:</strong> Search and inspect the entire book catalog
-                  freely. Staff circulation, member registration, and account provisioning require{' '}
-                  <code>LIBRARIAN</code> or <code>ADMIN</code> authentication.
+                  {isAuthenticated && bookshelf ? (
+                    <>
+                      <strong>My Bookshelf Active:</strong> You have{' '}
+                      <strong>{bookshelf.activeLoans.length}</strong> active loan
+                      {bookshelf.activeLoans.length === 1 ? '' : 's'} and{' '}
+                      <strong>{bookshelf.activeHolds.length}</strong> active hold
+                      {bookshelf.activeHolds.length === 1 ? '' : 's'}. Open{' '}
+                      <button
+                        type="button"
+                        className="error-summary-link"
+                        onClick={() => onNavigate('bookshelf')}
+                      >
+                        My Bookshelf
+                      </button>{' '}
+                      to renew loans (+14 days) or track pickups.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Public &amp; Member:</strong> Search and inspect the catalog freely,
+                      manage personal loans &amp; holds in My Bookshelf, or sign in with{' '}
+                      <code>LIBRARIAN</code> / <code>ADMIN</code> credentials for circulation desk
+                      operations.
+                    </>
+                  )}
                 </span>
               </div>
 
               {!isAuthenticated ? (
                 <button type="button" className="btn btn-primary" onClick={openSignInModal}>
                   <LogIn size={16} aria-hidden="true" />
-                  <span>Sign In with JWT Account</span>
+                  <span>Sign In</span>
                 </button>
               ) : null}
             </section>

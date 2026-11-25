@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
   KeyRound,
   Lock,
   LogIn,
+  RefreshCw,
   ShieldCheck,
   Wand2,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ export function AdminUsersPage() {
   const matrixCaptionId = useId();
 
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'LIBRARIAN' | 'MEMBER'>('LIBRARIAN');
   const [showPassword, setShowPassword] = useState(false);
@@ -43,7 +45,31 @@ export function AdminUsersPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [summaryErrors, setSummaryErrors] = useState<SummaryErrorItem[]>([]);
-  const [createdAccounts, setCreatedAccounts] = useState<AccountResponse[]>([]);
+  const [accounts, setAccounts] = useState<AccountResponse[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  const fetchAccounts = useCallback(async (signal?: AbortSignal) => {
+    if (!isAdmin) return;
+    setLoadingAccounts(true);
+    setAccountsError(null);
+    try {
+      const list = await adminApi.listAccounts(signal);
+      setAccounts(list);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setAccountsError(formatApiErrorMessage(err));
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const controller = new AbortController();
+    void fetchAccounts(controller.signal);
+    return () => controller.abort();
+  }, [isAdmin, fetchAccounts]);
 
   useEffect(() => {
     if (!isAdmin || !formRef.current) return;
@@ -57,8 +83,8 @@ export function AdminUsersPage() {
         title={isAuthenticated ? 'Administrator role required' : 'Admin sign-in required'}
         description={
           isAuthenticated
-            ? 'Only ADMIN accounts can provision new Librarian or Member logins via POST /api/admin/users.'
-            : 'Sign in with your administrator account to provision Librarian and Member login credentials.'
+            ? 'Only ADMIN accounts can create new Librarian or Member logins.'
+            : 'Sign in with your administrator account to create Librarian and Member login credentials.'
         }
         action={
           !isAuthenticated ? (
@@ -109,10 +135,12 @@ export function AdminUsersPage() {
         email: email.trim(),
         password,
         role,
+        ...(role === 'MEMBER' && fullName.trim() ? { fullName: fullName.trim() } : {}),
       });
 
-      setCreatedAccounts((prev) => [created, ...prev]);
+      setAccounts((prev) => [created, ...prev]);
       setEmail('');
+      setFullName('');
       setPassword('');
       setShowPassword(false);
       form.reset();
@@ -157,8 +185,7 @@ export function AdminUsersPage() {
             Create Login Account
           </h2>
           <p className="card-subtitle">
-            Provision new <code>LIBRARIAN</code> or <code>MEMBER</code> credentials via{' '}
-            <code>POST /api/admin/users</code>
+            Create login credentials for librarians and library members
           </p>
         </div>
 
@@ -177,7 +204,7 @@ export function AdminUsersPage() {
               Account email
             </label>
             <span id="admin-user-email-hint" className="field-hint">
-              Must be a unique email address for JWT sign-in.
+              Must be a unique email address for signing in
             </span>
             <input
               id="admin-user-email"
@@ -209,7 +236,7 @@ export function AdminUsersPage() {
               </label>
               <button
                 type="button"
-                className="btn btn-brass btn-sm"
+                className="btn btn-secondary btn-sm"
                 onClick={() => {
                   setPassword(generateStrongPassword());
                   setShowPassword(true);
@@ -221,7 +248,7 @@ export function AdminUsersPage() {
             </div>
             <ul id="admin-user-password-rules" className="rules-list">
               <li>Length between 12 and 72 characters ({password.length}/72 entered)</li>
-              <li>Stored hashed with BCrypt on the Spring Boot server</li>
+              <li>Passwords are encrypted before storage</li>
             </ul>
             <div className="input-with-action">
               <input
@@ -276,7 +303,7 @@ export function AdminUsersPage() {
           <div className="field">
             <span className="field-label">Assign role</span>
             <span className="field-hint">
-              Backend security prevents creating ADMIN accounts through this endpoint.
+              New accounts can be assigned the Librarian or Member role.
             </span>
             <div className="role-card-grid" role="radiogroup" aria-label="Account role">
               <button
@@ -309,11 +336,33 @@ export function AdminUsersPage() {
                   MEMBER
                 </span>
                 <span className="field-hint">
-                  Authenticated reader access to catalog &amp; personal JWT identity.
+                  My Bookshelf access for loans, 14-day renewals, and holds.
                 </span>
               </button>
             </div>
           </div>
+
+          {role === 'MEMBER' ? (
+            <div className="field">
+              <label className="field-label" htmlFor="admin-user-fullname">
+                Patron full name (optional)
+              </label>
+              <span id="admin-user-fullname-hint" className="field-hint">
+                Links this login to a patron borrower card (auto-derived from email if left blank).
+              </span>
+              <input
+                id="admin-user-fullname"
+                name="fullName"
+                type="text"
+                className="input-control"
+                maxLength={120}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                aria-describedby="admin-user-fullname-hint"
+                placeholder="Sokha Dara"
+              />
+            </div>
+          ) : null}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -328,7 +377,7 @@ export function AdminUsersPage() {
           <div className="card-header">
             <div>
               <h3 className="card-title">Role Permissions Matrix</h3>
-              <p className="card-subtitle">Mirrors Spring Boot SecurityConfig rules</p>
+              <p className="card-subtitle">Permissions enforced for each account role</p>
             </div>
           </div>
           <div
@@ -338,11 +387,12 @@ export function AdminUsersPage() {
             className="table-wrapper table-compact"
           >
             <table className="data-table">
-              <caption id={matrixCaptionId}>Backend endpoint authorization by role</caption>
+              <caption id={matrixCaptionId}>Authorization matrix by user role</caption>
               <thead>
                 <tr>
                   <th scope="col">Role</th>
-                  <th scope="col">Catalog</th>
+                  <th scope="col">Catalog &amp; Holds</th>
+                  <th scope="col">Self-Service</th>
                   <th scope="col">Desk Ops</th>
                   <th scope="col">Users</th>
                 </tr>
@@ -350,25 +400,29 @@ export function AdminUsersPage() {
               <tbody>
                 <tr>
                   <th scope="row">Guest</th>
-                  <td>Yes</td>
+                  <td>Browse</td>
+                  <td>No</td>
                   <td>No</td>
                   <td>No</td>
                 </tr>
                 <tr>
                   <th scope="row">MEMBER</th>
                   <td>Yes</td>
+                  <td>My Bookshelf</td>
                   <td>No</td>
                   <td>No</td>
                 </tr>
                 <tr>
                   <th scope="row">LIBRARIAN</th>
                   <td>Yes</td>
+                  <td>My Bookshelf</td>
                   <td>Full Access</td>
                   <td>No</td>
                 </tr>
                 <tr>
                   <th scope="row">ADMIN</th>
                   <td>Yes</td>
+                  <td>My Bookshelf</td>
                   <td>Full Access</td>
                   <td>Yes</td>
                 </tr>
@@ -378,22 +432,48 @@ export function AdminUsersPage() {
         </section>
 
         <section className="card card-padded form-stack" aria-labelledby="session-accounts-heading">
-          <div>
-            <h3 id="session-accounts-heading" className="card-title">
-              Created in This Session
-            </h3>
-            <p className="card-subtitle">
-              Accounts returned by <code>POST /api/admin/users</code>
-            </p>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0 }}>
+            <div>
+              <h3 id="session-accounts-heading" className="card-title">
+                System Accounts Directory
+              </h3>
+              <p className="card-subtitle">Active system users and assigned roles</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
+                {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon icon-square-btn"
+                onClick={() => void fetchAccounts()}
+                disabled={loadingAccounts}
+                aria-label="Refresh accounts directory"
+                title="Refresh directory"
+              >
+                <RefreshCw size={14} className={loadingAccounts ? 'spin-animation' : undefined} aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
-          {createdAccounts.length === 0 ? (
+          {accountsError ? (
+            <div className="alert alert-danger" role="alert" style={{ fontSize: '0.85rem' }}>
+              <AlertCircle size={16} aria-hidden="true" className="alert-icon" />
+              <span>{accountsError}</span>
+            </div>
+          ) : null}
+
+          {loadingAccounts && accounts.length === 0 ? (
             <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-              Newly created Librarian and Member accounts will appear here after submission.
+              Loading system accounts…
+            </p>
+          ) : accounts.length === 0 ? (
+            <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+              No system accounts found. Newly created accounts will appear here.
             </p>
           ) : (
-            <div className="form-stack" style={{ gap: '0.6rem' }}>
-              {createdAccounts.map((acc) => (
+            <div className="form-stack" style={{ gap: '0.6rem', maxHeight: '380px', overflowY: 'auto' }}>
+              {accounts.map((acc) => (
                 <div key={acc.id} className="session-account-row">
                   <div className="session-account-info">
                     <CheckCircle2
@@ -407,7 +487,7 @@ export function AdminUsersPage() {
                     </div>
                   </div>
                   <div className="row-actions">
-                    <StatusBadge tone={acc.role === 'LIBRARIAN' ? 'info' : 'neutral'} dot={false}>
+                    <StatusBadge tone={acc.role === 'ADMIN' ? 'warning' : acc.role === 'LIBRARIAN' ? 'info' : 'neutral'} dot={false}>
                       {acc.role}
                     </StatusBadge>
                     <button

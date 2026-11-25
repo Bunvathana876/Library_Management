@@ -54,7 +54,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setToasts((prev) => {
         const existingIds = new Set(prev.map((t) => t.id));
         const fresh = items.filter((item) => !existingIds.has(item.id));
-        return [...prev, ...fresh].slice(-4);
+        return [...prev, ...fresh].slice(-2);
       });
       announce(items[items.length - 1]);
     },

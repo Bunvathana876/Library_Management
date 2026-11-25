@@ -11,7 +11,7 @@ import {
 import { authApi } from '@/api/authApi';
 import { configureHttpClient } from '@/api/httpClient';
 import type { AuthUser } from '@/types/api';
-import { isAdmin as checkAdmin, isStaff as checkStaff } from '@/utils/roles';
+import { hasRole, isAdmin as checkAdmin, isStaff as checkStaff } from '@/utils/roles';
 
 interface StoredSession {
   accessToken: string;
@@ -24,6 +24,7 @@ interface AuthContextValue {
   isRestoring: boolean;
   isStaff: boolean;
   isAdmin: boolean;
+  isMember: boolean;
   remainingSeconds: number;
   signInModalOpen: boolean;
   openSignInModal: () => void;
@@ -181,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isRestoring,
       isStaff: checkStaff(user?.roles),
       isAdmin: checkAdmin(user?.roles),
+      isMember: hasRole(user?.roles, 'MEMBER'),
       remainingSeconds,
       signInModalOpen,
       openSignInModal,

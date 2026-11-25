@@ -1,12 +1,67 @@
-# Library Management System
+# 📚 Library Management System
 
-Full-stack Library Management System organized cleanly into two folders:
-- [`backend/`](./backend/) — **Spring Boot 4 / Java 21 / PostgreSQL** REST API
-- [`frontend/`](./frontend/) — **React 19 + TypeScript + Vite** Web UI
+[![Java](https://img.shields.io/badge/Java-21-orange.svg?logo=openjdk)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0%20(Milestone)-brightgreen.svg?logo=springboot)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6.3-purple.svg?logo=vite)](https://vitejs.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791.svg?logo=postgresql)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker)](https://www.docker.com/)
+[![CI](https://github.com/Bunvathana876/Library_Management/actions/workflows/ci.yml/badge.svg)](https://github.com/Bunvathana876/Library_Management/actions)
+
+A modern, production-ready full-stack Library Management System engineered with **Spring Boot 4 / Java 21** REST API and a **React 19 + TypeScript** web interface.
+
+The application allows libraries to manage book collections, member registrations, and borrowing lifecycles with strict role-based security, automated Flyway database migrations, and responsive UI design.
 
 ---
 
-## Project Folder Structure
+## 📑 Table of Contents
+
+- [Overview & Architecture](#-overview--architecture)
+- [Folder Structure](#-folder-structure)
+- [Key Features](#-key-features)
+- [Tech Stack](#-tech-stack)
+- [Quickstart Guide](#-quickstart-guide)
+  - [Prerequisites](#prerequisites)
+  - [1. Environment Setup](#1-environment-setup)
+  - [2. Option A: Run with Docker Compose (Fastest)](#2-option-a-run-with-docker-compose-fastest)
+  - [3. Option B: Run for Local Development](#3-option-b-run-for-local-development-hot-reloading)
+- [Default Admin Credentials](#-default-admin-credentials)
+- [REST API Reference](#-rest-api-reference)
+- [Testing & Quality Assurance](#-testing--quality-assurance)
+- [Configuration & Environment Variables](#-configuration--environment-variables)
+- [CI/CD Pipeline](#-cicd-pipeline)
+
+---
+
+## 🏛 Overview & Architecture
+
+The application is structured into two clean workspaces:
+- **`backend/`**: Stateless Spring Boot REST service handling business logic, data persistence, Flyway migrations, and HS256 JWT security.
+- **`frontend/`**: Fast React 19 Single Page Application built with Vite, TypeScript, and accessible CSS tokens.
+
+```text
+Browser (http://127.0.0.1:5173)
+   │
+   ├── UI User Actions, Modals & Toast Alerts
+   └── API Requests (/api/*) & Health Checks (/actuator/health)
+   ▼
+Vite Reverse Proxy (Local Dev) / Nginx (Production)
+   │   Forwards /api/* and /actuator/* to backend on :8080
+   ▼
+Spring Boot REST API (http://127.0.0.1:8080)
+   │   Validates HS256 JWT tokens & verifies role permissions
+   │   Enforces business rules (e.g. loan limits, duplicate check, stock)
+   ▼
+PostgreSQL 17 Database (127.0.0.1:5545 or Docker internal :5432)
+   │   Flyway versioned schema migrations (V1, V2, V3)
+```
+
+> **Note on CORS**: Because Vite (in development) and Nginx (in production) proxy `/api` and `/actuator` requests on the same origin, no complex CORS configurations or cookie handling issues occur.
+
+---
+
+## 📂 Folder Structure
 
 ```text
 library-management/
@@ -15,107 +70,341 @@ library-management/
 │   │   ├── main/java/com/library/management/
 │   │   │   ├── config/                   # SecurityConfig, JwtConfig, LocalAdminBootstrap
 │   │   │   ├── controller/               # Auth, AdminAccount, Book, Member, Loan endpoints
-│   │   │   ├── dto/                      # Request & response Java records
-│   │   │   ├── exception/                # ProblemDetail global error handling
-│   │   │   ├── model/                    # JPA entities (Book, Member, Loan, AppUser)
+│   │   │   ├── dto/                      # Java records for request validation & responses
+│   │   │   ├── exception/                # Global RFC 7807 / RFC 9457 ProblemDetail handler
+│   │   │   ├── model/                    # JPA entities: Book, Member, Loan, AppUser
 │   │   │   ├── repository/               # Spring Data JPA repositories
-│   │   │   └── service/                  # Business rules & transactions
+│   │   │   └── service/                  # Business logic & transactional services
 │   │   ├── main/resources/
-│   │   │   ├── application.properties    # Imports .env or ../.env automatically
-│   │   │   └── db/migration/             # Flyway SQL migrations (V1–V3)
-│   │   └── test/                         # Unit & Testcontainers integration tests
-│   ├── Dockerfile                        # Multi-stage Maven + Temurin 21 backend image
-│   ├── pom.xml                           # Maven project definition
-│   └── mvnw / mvnw.cmd                   # Maven Wrapper
+│   │   │   ├── application.properties    # Base configuration + .env auto-loader
+│   │   │   └── db/migration/             # Flyway SQL migrations (V1_books, V2_members_loans, V3_users)
+│   │   └── test/                         # JUnit 5 & Testcontainers PostgreSQL integration tests
+│   ├── Dockerfile                        # Multi-stage Temurin 21 container image
+│   ├── pom.xml                           # Maven project dependencies
+│   └── mvnw / mvnw.cmd                   # Maven Wrapper executables
 │
-├── frontend/                             # React + TypeScript Web UI (mirrors backend)
-│   ├── public/favicon.svg                # App icon
+├── frontend/                             # React 19 + TypeScript + Vite UI
+│   ├── public/                           # Static assets, covers & favicon
 │   ├── src/
-│   │   ├── api/                          # 1-to-1 clients matching Spring controllers
-│   │   │   ├── httpClient.ts             # JWT header injection & ProblemDetail parser
-│   │   │   ├── authApi.ts                # -> AuthController (/api/auth/*)
-│   │   │   ├── booksApi.ts               # -> BookController (/api/books/*)
-│   │   │   ├── membersApi.ts             # -> MemberController (/api/members)
-│   │   │   ├── loansApi.ts               # -> LoanController (/api/loans/*)
-│   │   │   ├── adminApi.ts               # -> AdminAccountController (/api/admin/users)
-│   │   │   └── healthApi.ts              # -> Actuator (/actuator/health)
+│   │   ├── api/                          # Strongly typed API clients matching Spring controllers
 │   │   ├── components/
-│   │   │   ├── forms/                    # SignIn, BookForm, BookDetail, Borrow, Member modals
-│   │   │   ├── layout/                   # Sidebar navigation & TopBar
-│   │   │   └── ui/                       # Native <dialog>, ConfirmDialog, Badges, Toasts
-│   │   ├── context/                      # AuthContext (JWT), ThemeContext, ToastContext
+│   │   │   ├── forms/                    # Modals: SignIn, BookForm, BookDetail, Borrow, Member
+│   │   │   ├── layout/                   # Sidebar, TopBar, BottomNav
+│   │   │   └── ui/                       # Accessible <dialog>, ConfirmDialog, StatCard, Toasts
+│   │   ├── context/                      # AuthContext (JWT session), ThemeContext, ToastContext
 │   │   ├── pages/                        # Overview, Books, Loans, Members, AdminUsers
-│   │   ├── styles/                       # Design tokens, base, components & layout CSS
-│   │   ├── types/                        # TypeScript interfaces matching Java DTOs
-│   │   └── utils/                        # Temporal PlainDate helpers, roles & error parsing
-│   ├── nginx.conf                        # Optional production SPA + /api reverse proxy
-│   └── vite.config.ts                    # Dev/preview proxy (/api & /actuator -> :8080)
+│   │   ├── styles/                       # CSS design tokens, light-dark() theme, layout primitives
+│   │   ├── types/                        # TypeScript types reflecting Java DTO records
+│   │   └── utils/                        # Temporal PlainDate helpers, role checks, form validation
+│   ├── nginx.conf                        # Production SPA reverse-proxy configuration
+│   └── vite.config.ts                    # Vite dev server with /api and /actuator proxy
 │
-├── .env.example                          # Environment template (copy to .env)
-├── compose.yaml                          # PostgreSQL 17 + backend/ Spring Boot Docker stack
-└── README.md                             # Project overview & run guide
+├── .github/workflows/ci.yml              # GitHub Actions CI for backend + frontend
+├── .env.example                          # Template for secrets and credentials
+├── compose.yaml                          # PostgreSQL 17 + Spring Boot API Docker setup
+└── README.md                             # Project documentation
 ```
 
 ---
 
-## How Frontend Connects to Backend
+## ✨ Key Features
 
-```text
-Browser (http://127.0.0.1:5173)
-   │
-   ├── GET /api/books, POST /api/auth/login, ...
-   └── GET /actuator/health
-   ▼
-Vite Reverse Proxy (frontend/vite.config.ts)
-   │   Forwards /api/* and /actuator/* -> http://127.0.0.1:8080
-   ▼
-Spring Boot API (127.0.0.1:8080)
-   │   Validates HS256 JWT tokens & executes business logic
-   ▼
-PostgreSQL 17 (127.0.0.1:5545)
-```
+- **📖 Book Catalog Management**:
+  - Full CRUD operations on books (Title, Author, ISBN, Publication Year, Publisher, Cover Artwork).
+  - **Instant ISBN Auto-Fill (Open Library API)**: Typing, pasting, or scanning an ISBN (USB/Bluetooth barcode scanner or built-in camera scanner) automatically pulls verified metadata (`title`, `author`, `publicationYear`, `publisher`, canonical `isbn`) and cover artwork.
+  - Real-time search by title, author, publisher, or ISBN.
+  - Availability tracking (Available vs. On Loan).
+  - Public catalog browsing for guests without authentication.
 
-Because Vite proxies `/api` and `/actuator` on the same origin (`127.0.0.1:5173`), no backend CORS changes are required.
+- **👥 Member Directory**:
+  - Member registration with validation (Full Name, Email, Phone Number, Join Date).
+  - Search and filter registered library members.
+
+- **🔁 Borrowing, Renewals & Camera Scanner**:
+  - Issue book loans with automated 14-day return due dates.
+  - **Loan Renewals & Extensions (+14 Days)**: 1-click renewals (up to 2 times) directly from the circulation desk or patron portal, automatically blocked (`409`) if another member has an active hold.
+  - **Camera Barcode & QR Code Scanner**: Native browser `BarcodeDetector` scanner (with lazy `@zxing/browser` fallback) for instant webcam checkout and returns using ISBN barcodes or `CAT-xxxx` / `MEM-xxxx` / `LOAN-xxxx` QR codes.
+  - **Reservations & Holds Queue**: Place FIFO holds on checked-out books; returning a book with waiting holds automatically reserves it at the circulation desk (`READY_FOR_PICKUP`, 3-day pickup window).
+
+- **📚 Member Self-Service Portal ("My Bookshelf")**:
+  - Activated `MEMBER` dashboard displaying active loans with due-date countdowns, 1-click `+14d` renewals, active holds & pickup notifications, return history, and a scannable Member QR pass (`MEM-xxxx`).
+
+- **🛡️ Authentication & Role-Based Access Control (RBAC)**:
+  - Stateless authentication with HS256 JWT tokens via `Authorization: Bearer <token>` headers.
+  - Three user roles:
+    - `USER`: Read-only access to browse and search the book catalog.
+    - `LIBRARIAN`: Manage books, register members, and issue/return loans.
+    - `ADMIN`: Full system access, including managing librarian and administrator accounts.
+  - Automatic local admin account bootstrap on first startup.
+
+- **🎨 Modern & Accessible UI**:
+  - Built with React 19 and modern CSS with light/dark theme switching via `light-dark()`.
+  - Accessible native `<dialog>` wrappers with keyboard navigation (Esc, focus trap).
+  - Non-blocking toast notifications using HTML `popover="manual"`.
+  - Live system health status badge querying `/actuator/health`.
+
+- **🧪 Enterprise Quality & Testing**:
+  - Spring Boot 4 unit and integration tests using **Testcontainers** with real PostgreSQL instances.
+  - Vitest + TypeScript typecheck for frontend correctness.
+  - RFC 7807 `ProblemDetail` standard error responses.
 
 ---
 
-## Running Locally
+## 🛠 Tech Stack
 
-### 1. Start the Spring Boot Backend + PostgreSQL
-Ensure `.env` is configured at the project root (see `.env.example`), then run:
+| Layer | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Backend Framework** | Spring Boot | 4.0.0-M3 | Core enterprise REST API framework |
+| **Language** | Java | 21 (LTS) | Modern language features (Records, Pattern Matching) |
+| **Security** | Spring Security & OAuth2 Resource Server | 6.x | Stateless JWT authentication and role enforcement |
+| **Database** | PostgreSQL | 17 | Relational persistence with foreign key integrity |
+| **Migrations** | Flyway | 11.x | Version-controlled, reproducible SQL database migrations |
+| **Testing** | JUnit 5 & Testcontainers | 2.x | Real containerized integration tests |
+| **Frontend Framework**| React | 19.1.0 | Component-based interactive UI |
+| **Language** | TypeScript | 5.8 | Full type safety matching backend DTOs |
+| **Build Tool** | Vite | 6.3 | Ultra-fast development server and optimized bundle builder |
+| **Icons & Polyfills** | Lucide React / Temporal | Latest | Clean UI iconography & ISO date handling |
+| **Unit Testing (UI)**| Vitest | 5.1 | Fast in-memory unit testing for utils & validation |
+| **Containers** | Docker & Docker Compose | Latest | Standardized containerization for Frontend, API and Database |
+
+---
+
+## 🚀 Quickstart Guide
+
+### Prerequisites
+Make sure you have the following installed on your system:
+- **Java 21 JDK** (e.g. Eclipse Temurin 21)
+- **Node.js 20+** and **npm**
+- **Docker** and **Docker Compose**
+
+---
+
+### 1. Environment Setup
+
+Clone the repository and create your local `.env` configuration file from the template:
 
 ```bash
-docker compose up -d
+git clone https://github.com/Bunvathana876/Library_Management.git
+cd Library_Management
+cp .env.example .env
 ```
 
-Or run PostgreSQL via Docker and start Spring Boot directly from `backend/`:
+Open `.env` and fill in your values. For the JWT secret, generate a secure 256-bit base64-encoded string:
 
+```bash
+# Generate a secure 32-byte (256-bit) secret on macOS / Linux:
+openssl rand -base64 32
+```
+
+Sample `.env` file:
+```ini
+# PostgreSQL credentials
+LIBRARY_DB_PASSWORD=your_secure_db_password
+
+# Spring Boot profiles and JWT signing secret
+SPRING_PROFILES_ACTIVE=local
+LIBRARY_JWT_SECRET_BASE64=your_generated_base64_secret_here
+
+# Initial administrator bootstrap credentials
+LIBRARY_ADMIN_EMAIL=admin@library.local
+LIBRARY_ADMIN_PASSWORD=change-me-admin-password
+```
+
+---
+
+### 2. Option A: Run Full Stack with Docker Compose (Fastest)
+
+To launch the complete system (PostgreSQL database, Spring Boot API, and Nginx React frontend):
+
+```bash
+# Build and start all three services in the background
+docker compose up -d --build
+```
+
+- **Frontend Web UI**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
+- **Spring Boot REST API**: [http://127.0.0.1:8080](http://127.0.0.1:8080)
+- **Actuator Health**: [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)
+- **PostgreSQL Database**: `127.0.0.1:5545` (internal `5432`)
+
+
+---
+
+### 3. Option B: Run for Local Development (Hot Reloading)
+
+If you are developing backend or frontend features locally:
+
+#### Step 1: Start only PostgreSQL in Docker
 ```bash
 docker compose up -d db
-cd backend && ./mvnw spring-boot:run
 ```
+*(PostgreSQL runs on port `127.0.0.1:5545`)*
 
-Run backend unit & integration tests from `backend/`:
-
+#### Step 2: Start Spring Boot REST API
 ```bash
-cd backend && ./mvnw -B verify
+cd backend
+./mvnw spring-boot:run
 ```
+*(The backend API starts on port `127.0.0.1:8080`)*
 
-Verify the backend is healthy:
-
+Verify that the backend is healthy:
 ```bash
 curl http://127.0.0.1:8080/actuator/health
+# {"status":"UP"}
 ```
 
-### 2. Start the Frontend Web UI
-
+#### Step 3: Start the Frontend UI
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+*(The Vite dev server starts on `http://127.0.0.1:5173` with automatic API proxying to port `8080`)*
 
-Open **http://127.0.0.1:5173** in your browser.
+---
 
-- **Public Catalog**: Browse and search books immediately without signing in.
-- **Staff / Admin Features**: Click **Sign In** and use the `LIBRARY_ADMIN_EMAIL` and `LIBRARY_ADMIN_PASSWORD` configured in your local `.env`.
+## 🔑 Default Admin Credentials
+
+When running with `SPRING_PROFILES_ACTIVE=local`, the system automatically bootstraps an initial administrator account using the values configured in your `.env` file:
+
+- **Email**: `admin@library.local`
+- **Password**: `change-me-admin-password` (or what you configured in `.env`)
+- **Role**: `ADMIN`
+
+To sign in:
+1. Open the UI at **http://127.0.0.1:5173**.
+2. Click **Sign In** in the top navigation bar.
+3. Enter the email and password above.
+4. You now have full access to create librarian accounts, add books, register members, and manage loans!
+
+---
+
+## 📡 REST API Reference
+
+All protected endpoints require an HTTP header:
+`Authorization: Bearer <your_jwt_token>`
+
+### 1. Authentication (`/api/auth`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | **Public** | Authenticate with email & password; returns HS256 JWT access token |
+| `GET` | `/api/auth/me` | **Authenticated** | Returns current user subject email and granted roles |
+
+### 2. Books (`/api/books`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/books` | **Public** | List books with optional `?search=` filter (title, author, publisher, ISBN) |
+| `GET` | `/api/books/{id}` | **Public** | Get detailed information for a specific book |
+| `GET` | `/api/books/isbn/{isbn}` | **STAFF / ADMIN** | Look up verified metadata & cover artwork by ISBN-10 / ISBN-13 via Open Library |
+| `POST` | `/api/books` | **STAFF / ADMIN** | Create a new book |
+| `PUT` | `/api/books/{id}` | **STAFF / ADMIN** | Update existing book attributes |
+| `DELETE` | `/api/books/{id}` | **STAFF / ADMIN** | Delete a book by ID |
+
+### 3. Members (`/api/members`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/members` | **STAFF / ADMIN** | List all registered library members |
+| `POST` | `/api/members` | **STAFF / ADMIN** | Register a new library member |
+
+### 4. Loans (`/api/loans`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/loans/active` | **STAFF / ADMIN** | List all currently active (unreturned) loans |
+| `GET` | `/api/loans/overdue` | **STAFF / ADMIN** | List all overdue loans |
+| `GET` | `/api/loans/{id}` | **STAFF / ADMIN** | Get details for a specific loan |
+| `POST` | `/api/loans` | **STAFF / ADMIN** | Borrow a book for a member (`bookId`, `memberId`, `dueDate`) |
+| `POST` | `/api/loans/{id}/return` | **STAFF / ADMIN** | Mark an active loan as returned and promote next hold if queued |
+| `POST` | `/api/loans/{id}/renew` | **STAFF / ADMIN** | Renew an active loan (+14 days, max 2, blocked by active holds) |
+
+### 5. Member Self-Service ("My Bookshelf") & Holds (`/api/me`, `/api/holds`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/me/bookshelf` | **Authenticated** | Get active loans, return history, active/past holds, and member card ID |
+| `POST` | `/api/me/loans/{id}/renew` | **Authenticated** | Self-service 14-day renewal on own loan (max 2, blocked by holds) |
+| `POST` | `/api/holds` | **Authenticated** | Place a FIFO reservation hold on a loaned-out or held book |
+| `POST` | `/api/holds/{id}/cancel` | **Authenticated** | Cancel own hold (or any hold for staff), promoting next in queue |
+| `GET` | `/api/holds/active` | **STAFF / ADMIN** | List all ready pickups and FIFO waiting holds |
+| `POST` | `/api/holds/{id}/fulfill` | **STAFF / ADMIN** | Convert a ready-for-pickup hold into an active 14-day loan |
+
+### 6. Administration (`/api/admin/users`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/users` | **ADMIN** | List all registered user accounts and their assigned roles |
+| `POST` | `/api/admin/users` | **ADMIN** | Provision new user accounts with roles (`LIBRARIAN` or `MEMBER`) |
+
+### 6. Interactive API Documentation
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/swagger-ui.html` | **Public** | Interactive OpenAPI / Swagger UI playground and documentation |
+| `GET` | `/v3/api-docs` | **Public** | Raw OpenAPI JSON specification |
+
+### 7. System Health
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/actuator/health` | **Public** | Spring Boot Actuator application and database health status |
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+### Backend Tests
+Execute unit and Testcontainers integration tests from the `backend/` directory:
+
+```bash
+cd backend
+
+# Run fast unit tests
+./mvnw test
+
+# Run full suite including Testcontainers PostgreSQL integration tests
+./mvnw -B verify
+```
+
+### Frontend Checks
+Run TypeScript static verification, unit tests, and production build checks:
+
+```bash
+cd frontend
+
+# Verify TypeScript types
+npm run typecheck
+
+# Run unit tests with Vitest
+npm test
+
+# Build production bundle
+npm run build
+```
+
+---
+
+## ⚙️ Configuration & Environment Variables
+
+| Variable | Required | Default in `.env.example` | Description |
+| :--- | :---: | :--- | :--- |
+| `LIBRARY_DB_PASSWORD` | **Yes** | `change-me-db-password` | PostgreSQL database user password |
+| `SPRING_PROFILES_ACTIVE` | No | `local` | Active Spring profile (enables local admin bootstrap) |
+| `LIBRARY_JWT_SECRET_BASE64` | **Yes** | `replace-with-base64-encoded-32-byte-secret` | 256-bit Base64 secret key for HS256 JWT signature verification |
+| `LIBRARY_ADMIN_EMAIL` | **Yes** | `admin@library.local` | Email address for bootstrapped administrator |
+| `LIBRARY_ADMIN_PASSWORD` | **Yes** | `change-me-admin-password` | Initial password (min. 12 characters) for bootstrapped admin |
+
+---
+
+## 🔄 CI/CD Pipeline
+
+The repository includes a GitHub Actions workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) that triggers automatically on pushes and pull requests to `main`:
+
+1. **Backend Tests Job**:
+   - Provisions Ubuntu environment with Java 21 Temurin.
+   - Leverages Docker for real Testcontainers integration tests.
+   - Executes `./mvnw -B verify`.
+
+2. **Frontend Tests Job**:
+   - Provisions Node.js 20 environment.
+   - Installs dependencies using `npm ci`.
+   - Runs TypeScript type checking (`tsc --noEmit`), Vitest suite, and production build (`vite build`).
+
+---
+
+## 📄 License
+
+This project is open-source and available under the standard MIT License.

@@ -21,6 +21,18 @@ public interface BookRepository
         String author
     );
 
+    @Query("""
+        SELECT b FROM Book b
+        WHERE LOWER(b.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
+           OR LOWER(b.author) LIKE LOWER(CONCAT('%', :keyword, '%'))
+           OR LOWER(COALESCE(b.publisher, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+           OR LOWER(COALESCE(b.isbn, '')) LIKE LOWER(CONCAT('%', :normalizedKeyword, '%'))
+        """)
+    List<Book> searchBooks(
+        @Param("keyword") String keyword,
+        @Param("normalizedKeyword") String normalizedKeyword
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Book b WHERE b.id = :id")
     Optional<Book> findByIdForUpdate(@Param("id") Long id);

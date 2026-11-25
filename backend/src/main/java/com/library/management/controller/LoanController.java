@@ -49,4 +49,9 @@ public class LoanController {
     public LoanResponse returnBook(@PathVariable Long id) {
         return loanService.returnBook(id);
     }
+
+    @PostMapping("/{id}/renew")
+    public LoanResponse renewLoan(@PathVariable Long id) {
+        return loanService.renewLoan(id);
+    }
 }

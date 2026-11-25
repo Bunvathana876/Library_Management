@@ -1,4 +1,4 @@
-import { LogIn, Menu, Moon, Plus, Repeat, Search, Sun, UserPlus } from 'lucide-react';
+import { Camera, LogIn, Menu, Moon, Plus, Repeat, Search, Sun, UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import type { NavTab } from '@/components/layout/Sidebar';
@@ -11,28 +11,33 @@ interface TopBarProps {
   onOpenAddBook: () => void;
   onOpenBorrowBook: () => void;
   onOpenRegisterMember: () => void;
+  onOpenScanner?: () => void;
 }
 
 const PAGE_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
   overview: {
     title: 'Library Overview',
-    subtitle: 'Real-time catalog inventory, circulation pulse, and quick actions',
+    subtitle: 'Collection inventory, circulation status, and quick actions',
   },
   books: {
     title: 'Books Catalog',
-    subtitle: 'Search, inspect, and manage volumes across the library shelf',
+    subtitle: 'Browse, filter, and manage titles in the collection',
+  },
+  bookshelf: {
+    title: 'My Bookshelf',
+    subtitle: 'Active checkouts with due-date countdowns, 14-day renewals, holds, and history',
   },
   loans: {
     title: 'Loans & Returns Desk',
-    subtitle: 'Track active checkouts, overdue alerts, and loan receipts',
+    subtitle: 'Active checkouts, overdue alerts, holds queue, and barcode scanning',
   },
   members: {
     title: 'Member Directory',
-    subtitle: 'Registered borrowers and active circulation load',
+    subtitle: 'Registered borrowers, member QR passes, and active loan standing',
   },
   admin: {
     title: 'Staff & Account Provisioning',
-    subtitle: 'Create librarian and member login accounts and review role access',
+    subtitle: 'Create staff or member accounts and review role permissions',
   },
 };
 
@@ -44,6 +49,7 @@ export function TopBar({
   onOpenAddBook,
   onOpenBorrowBook,
   onOpenRegisterMember,
+  onOpenScanner,
 }: TopBarProps) {
   const { isAuthenticated, isStaff, openSignInModal } = useAuth();
   const { renderedScheme, toggleTheme } = useTheme();
@@ -92,10 +98,18 @@ export function TopBar({
         ) : null}
 
         {isStaff && activeTab === 'loans' ? (
-          <button type="button" className="btn btn-primary btn-sm" onClick={onOpenBorrowBook}>
-            <Repeat size={16} aria-hidden="true" />
-            <span>Borrow Book</span>
-          </button>
+          <>
+            {onOpenScanner ? (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenScanner}>
+                <Camera size={16} aria-hidden="true" />
+                <span>Scan</span>
+              </button>
+            ) : null}
+            <button type="button" className="btn btn-primary btn-sm" onClick={onOpenBorrowBook}>
+              <Repeat size={16} aria-hidden="true" />
+              <span>Borrow Book</span>
+            </button>
+          </>
         ) : null}
 
         {isStaff && activeTab === 'members' ? (

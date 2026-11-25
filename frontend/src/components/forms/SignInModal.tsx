@@ -88,7 +88,7 @@ export function SignInModal({ open, onClose }: SignInModalProps) {
       open={open}
       onClose={handleClose}
       title="Sign in to Athenaeum"
-      subtitle="Authenticate with your Spring Boot JWT account to unlock circulation and admin tools."
+      subtitle="Sign in with your account to access circulation and member management"
       size="sm"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
@@ -126,10 +126,8 @@ export function SignInModal({ open, onClose }: SignInModalProps) {
               placeholder="admin@library.local"
             />
             <div id="signin-email-error" className="field-error">
-              <span role="img" aria-label="Error">
-                !
-              </span>{' '}
-              Enter a valid email address.
+              <AlertCircle size={14} aria-hidden="true" />
+              <span>Enter a valid email address.</span>
             </div>
           </div>
 
@@ -165,18 +163,15 @@ export function SignInModal({ open, onClose }: SignInModalProps) {
               </button>
             </div>
             <div id="signin-password-error" className="field-error">
-              <span role="img" aria-label="Error">
-                !
-              </span>{' '}
-              Password is required.
+              <AlertCircle size={14} aria-hidden="true" />
+              <span>Password is required.</span>
             </div>
           </div>
 
           <div className="alert alert-info">
             <Lock size={16} aria-hidden="true" className="alert-icon" />
             <span>
-              Your JWT token is verified directly against <code>/api/auth/login</code> and expires
-              automatically after 30 minutes.
+              Sessions remain active for 30 minutes before requiring re-authentication.
             </span>
           </div>
         </div>

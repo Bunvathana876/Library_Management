@@ -137,4 +137,61 @@ class BookControllerTest {
 
         verify(bookService).deleteBook(42L);
     }
+
+    @Test
+    void shouldCreateBookWithIsbnPublisherAndCoverUrl() throws Exception {
+        Book created = new Book(
+            "Clean Code",
+            "Robert C. Martin",
+            2008,
+            "9780132350884",
+            "Prentice Hall",
+            "https://covers.openlibrary.org/b/id/15126503-L.jpg"
+        );
+        when(bookService.createBook(any(BookRequest.class))).thenReturn(created);
+
+        mockMvc.perform(post("/api/books")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "title": "Clean Code",
+                        "author": "Robert C. Martin",
+                        "publicationYear": 2008,
+                        "isbn": "978-0-13-235088-4",
+                        "publisher": "Prentice Hall",
+                        "coverUrl": "https://covers.openlibrary.org/b/id/15126503-L.jpg"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.isbn").value("9780132350884"))
+            .andExpect(jsonPath("$.publisher").value("Prentice Hall"))
+            .andExpect(jsonPath("$.coverUrl").value("https://covers.openlibrary.org/b/id/15126503-L.jpg"));
+
+        verify(bookService).createBook(eq(new BookRequest(
+            "Clean Code",
+            "Robert C. Martin",
+            2008,
+            "978-0-13-235088-4",
+            "Prentice Hall",
+            "https://covers.openlibrary.org/b/id/15126503-L.jpg"
+        )));
+    }
+
+    @Test
+    void shouldRejectUnsafeCoverUrlScheme() throws Exception {
+        mockMvc.perform(post("/api/books")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "title": "Clean Code",
+                        "author": "Robert C. Martin",
+                        "publicationYear": 2008,
+                        "coverUrl": "javascript:alert(1)"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors.coverUrl").value("Cover URL must be an http(s) or relative URL"));
+
+        verify(bookService, never()).createBook(any());
+    }
 }

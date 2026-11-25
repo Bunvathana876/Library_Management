@@ -100,6 +100,12 @@ public class SecurityConfig {
                     "/actuator/health/**"
                 ).permitAll()
 
+                // Staff-only ISBN metadata lookup (must precede public GET /api/books/**)
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/books/isbn/**"
+                ).hasAnyRole("ADMIN", "LIBRARIAN")
+
                 // Public book catalog
                 .requestMatchers(
                     HttpMethod.GET,
@@ -107,10 +113,17 @@ public class SecurityConfig {
                     "/api/books/**"
                 ).permitAll()
 
-                // Logged-in users
+                // Logged-in users (member self-service & holds)
                 .requestMatchers(
                     HttpMethod.GET, "/api/auth/me"
                 ).authenticated()
+                .requestMatchers("/api/me/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/holds").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/holds/*/cancel").authenticated()
+
+                // Staff-only hold desk management
+                .requestMatchers("/api/holds/**")
+                    .hasAnyRole("ADMIN", "LIBRARIAN")
 
                 // Admin only
                 .requestMatchers("/api/admin/**")

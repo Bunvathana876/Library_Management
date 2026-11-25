@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { AlertCircle, CalendarClock } from 'lucide-react';
+import { AlertCircle, CalendarClock, Camera } from 'lucide-react';
 import { loansApi } from '@/api/loansApi';
 import { ErrorSummary, type SummaryErrorItem } from '@/components/ui/ErrorSummary';
 import { ModalDialog } from '@/components/ui/ModalDialog';
 import { useToast } from '@/context/ToastContext';
-import type { Book, LoanResponse, Member } from '@/types/api';
+import type { Book, HoldResponse, LoanResponse, Member } from '@/types/api';
 import { formatCalendarDate, previewDueDate, todayPlainDate } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
 import { installFormValidationAria } from '@/utils/formValidation';
@@ -13,25 +13,32 @@ interface BorrowBookModalProps {
   open: boolean;
   books: Book[];
   members: Member[];
+  activeHolds?: HoldResponse[];
   initialBookId?: number | null;
   initialMemberId?: number | null;
   onClose: () => void;
   onBorrowed: (loan: LoanResponse) => void;
+  onOpenScanner?: () => void;
 }
 
 export function BorrowBookModal({
   open,
   books,
   members,
+  activeHolds = [],
   initialBookId = null,
   initialMemberId = null,
   onClose,
   onBorrowed,
+  onOpenScanner,
 }: BorrowBookModalProps) {
   const { notify } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
-  const availableBooks = useMemo(() => books.filter((b) => b.available), [books]);
+  const availableBooks = useMemo(
+    () => books.filter((b) => b.available || b.reservedForPickup),
+    [books],
+  );
 
   const [bookId, setBookId] = useState('');
   const [memberId, setMemberId] = useState('');
@@ -47,12 +54,19 @@ export function BorrowBookModal({
         : availableBooks[0]
           ? String(availableBooks[0].id)
           : '';
+    const readyHoldForDefault = defaultBook
+      ? activeHolds.find(
+          (h) => String(h.bookId) === defaultBook && h.status === 'READY_FOR_PICKUP',
+        )
+      : undefined;
     const defaultMember =
-      initialMemberId && members.some((m) => m.id === initialMemberId)
-        ? String(initialMemberId)
-        : members[0]
-          ? String(members[0].id)
-          : '';
+      readyHoldForDefault
+        ? String(readyHoldForDefault.memberId)
+        : initialMemberId && members.some((m) => m.id === initialMemberId)
+          ? String(initialMemberId)
+          : members[0]
+            ? String(members[0].id)
+            : '';
     setBookId(defaultBook);
     setMemberId(defaultMember);
     setErrorMsg(null);
@@ -60,7 +74,7 @@ export function BorrowBookModal({
     if (formRef.current) {
       return installFormValidationAria(formRef.current);
     }
-  }, [open, initialBookId, initialMemberId, availableBooks, members]);
+  }, [open, initialBookId, initialMemberId, availableBooks, members, activeHolds]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -117,7 +131,7 @@ export function BorrowBookModal({
       open={open}
       onClose={onClose}
       title="Issue New Book Loan"
-      subtitle="Checkout an available book to a registered library member (14-day loan period)."
+      subtitle="Checkout an available book to a registered library member (14-day loan period)"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
         <div className="modal-body form-stack">
@@ -143,11 +157,26 @@ export function BorrowBookModal({
           ) : null}
 
           <div className="field">
-            <label className="field-label" htmlFor="borrow-book-select">
-              Available Book
-            </label>
+            <div className="field-label-row">
+              <label className="field-label" htmlFor="borrow-book-select">
+                Available Book
+              </label>
+              {onOpenScanner ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    onClose();
+                    onOpenScanner();
+                  }}
+                >
+                  <Camera size={14} aria-hidden="true" />
+                  <span>Scan with Camera</span>
+                </button>
+              ) : null}
+            </div>
             <span id="borrow-book-hint" className="field-hint">
-              Only currently available volumes are eligible for checkout.
+              Available shelf copies and reserved pickups ready for checkout.
             </span>
             <select
               id="borrow-book-select"
@@ -157,7 +186,16 @@ export function BorrowBookModal({
               autoFocus
               disabled={availableBooks.length === 0}
               value={bookId}
-              onChange={(e) => setBookId(e.target.value)}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setBookId(nextId);
+                const readyHold = activeHolds.find(
+                  (h) => String(h.bookId) === nextId && h.status === 'READY_FOR_PICKUP',
+                );
+                if (readyHold) {
+                  setMemberId(String(readyHold.memberId));
+                }
+              }}
               aria-describedby="borrow-book-hint"
               data-error="borrow-book-error"
             >

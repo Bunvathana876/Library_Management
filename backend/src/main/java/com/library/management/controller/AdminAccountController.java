@@ -26,4 +26,9 @@ public class AdminAccountController {
     ) {
         return accountService.create(request);
     }
+
+    @GetMapping
+    public java.util.List<AccountResponse> getAllUsers() {
+        return accountService.getAllUsers();
+    }
 }

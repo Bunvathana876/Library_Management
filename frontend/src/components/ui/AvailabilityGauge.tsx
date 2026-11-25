@@ -1,5 +1,3 @@
-import { PieChart } from 'lucide-react';
-
 interface AvailabilityGaugeProps {
   totalBooks: number;
   availableBooks: number;
@@ -34,20 +32,15 @@ export function AvailabilityGauge({
 
   return (
     <section className="card card-padded form-stack" aria-labelledby="collection-health-heading">
-      <div className="card-header-with-icon">
-        <span className="section-icon-badge" aria-hidden="true">
-          <PieChart size={18} />
-        </span>
-        <div>
-          <h3 id="collection-health-heading" className="card-title">
-            Collection Availability Pulse
-          </h3>
-          <p className="card-subtitle">
-            {totalBooks === 0
-              ? 'No volumes indexed in catalog yet'
-              : `Live shelf readiness ratio across ${totalBooks} catalog volume${totalBooks === 1 ? '' : 's'}`}
-          </p>
-        </div>
+      <div>
+        <h3 id="collection-health-heading" className="card-title">
+          Collection Availability
+        </h3>
+        <p className="card-subtitle">
+          {totalBooks === 0
+            ? 'No titles cataloged yet'
+            : `Shelf readiness across ${totalBooks} cataloged title${totalBooks === 1 ? '' : 's'}`}
+        </p>
       </div>
 
       {loading && totalBooks === 0 ? (

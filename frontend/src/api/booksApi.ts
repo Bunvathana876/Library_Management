@@ -1,5 +1,5 @@
 import { apiRequest } from '@/api/httpClient';
-import type { Book, BookRequest } from '@/types/api';
+import type { Book, BookMetadataResponse, BookRequest } from '@/types/api';
 
 export const booksApi = {
   listBooks(search = '', signal?: AbortSignal): Promise<Book[]> {
@@ -16,6 +16,14 @@ export const booksApi = {
     return apiRequest<Book>(`/api/books/${id}`, {
       method: 'GET',
       auth: false,
+      signal,
+    });
+  },
+
+  lookupIsbn(isbn: string, signal?: AbortSignal): Promise<BookMetadataResponse> {
+    return apiRequest<BookMetadataResponse>(`/api/books/isbn/${encodeURIComponent(isbn)}`, {
+      method: 'GET',
+      auth: true,
       signal,
     });
   },

@@ -16,6 +16,13 @@ public record CreateAccountRequest(
     String password,
 
     @NotNull
-    UserRole role
+    UserRole role,
 
-) {}
+    @Size(max = 120)
+    String fullName
+
+) {
+    public CreateAccountRequest(String email, String password, UserRole role) {
+        this(email, password, role, null);
+    }
+}
