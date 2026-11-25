@@ -3,7 +3,10 @@ package com.library.management;
 import com.library.management.model.AppUser;
 import com.library.management.model.UserRole;
 import com.library.management.repository.AppUserRepository;
+import com.library.management.repository.HoldRepository;
+import com.library.management.repository.LoanRepository;
 import com.library.management.repository.MemberRepository;
+import com.library.management.repository.NotificationRepository;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -52,6 +56,18 @@ class SecurityIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
+    private HoldRepository holdRepository;
+
+    @Autowired
+    private LoanRepository loanRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -74,12 +90,19 @@ class SecurityIntegrationTest {
     }
 
     private void cleanupTestUsers() {
-        for (String email : TEST_EMAILS) {
-            memberRepository.findByEmailIgnoreCase(email)
-                .ifPresent(memberRepository::delete);
-            appUserRepository.findByEmail(email)
-                .ifPresent(appUserRepository::delete);
-        }
+        transactionTemplate.executeWithoutResult(status -> {
+            for (String email : TEST_EMAILS) {
+                notificationRepository.deleteAllByRecipientEmailIgnoreCase(email);
+                memberRepository.findByEmailIgnoreCase(email)
+                    .ifPresent(member -> {
+                        holdRepository.deleteAllByMemberId(member.getId());
+                        loanRepository.deleteAllByMemberId(member.getId());
+                        memberRepository.delete(member);
+                    });
+                appUserRepository.findByEmail(email)
+                    .ifPresent(appUserRepository::delete);
+            }
+        });
     }
 
     private HttpResponse<String> send(
@@ -226,5 +249,103 @@ class SecurityIntegrationTest {
         assertEquals(200, send("GET", "/api/holds/active", null, librarianToken).statusCode());
         assertEquals(405, send("GET", "/api/loans", null, adminToken).statusCode());
         assertEquals(403, send("GET", "/error", null, adminToken).statusCode());
+    }
+
+    @Test
+    void selfRegistrationPasswordChangeAdminLifecycleAndMemberLifecycle() throws Exception {
+        String adminToken = loginAndGetToken(TEST_ADMIN_EMAIL);
+
+        // 1. Public self-registration creates MEMBER account & returns JWT
+        HttpResponse<String> registerRes = send(
+            "POST",
+            "/api/auth/register",
+            """
+            {"fullName":"Self Patron","email":"%s","password":"SelfStrongPass123!"}
+            """.formatted(TEST_CREATED_EMAIL),
+            null
+        );
+        assertEquals(201, registerRes.statusCode());
+        String selfToken = objectMapper.readTree(registerRes.body()).get("accessToken").asString();
+        assertFalse(selfToken.isBlank());
+
+        // Self can read My Bookshelf and Notifications
+        HttpResponse<String> shelfRes = send("GET", "/api/me/bookshelf", null, selfToken);
+        assertEquals(200, shelfRes.statusCode());
+        long memberId = objectMapper.readTree(shelfRes.body()).get("memberId").asLong();
+        assertEquals(200, send("GET", "/api/me/notifications", null, selfToken).statusCode());
+
+        // 2. Self change-password works
+        HttpResponse<String> changePassRes = send(
+            "POST",
+            "/api/auth/change-password",
+            """
+            {"currentPassword":"SelfStrongPass123!","newPassword":"UpdatedStrongPass456!"}
+            """,
+            selfToken
+        );
+        assertEquals(204, changePassRes.statusCode());
+
+        // 3. Admin toggles account disabled -> login rejected, then re-enabled + role promoted to LIBRARIAN
+        JsonNode users = objectMapper.readTree(send("GET", "/api/admin/users", null, adminToken).body());
+        long createdUserId = -1;
+        for (JsonNode u : users) {
+            if (TEST_CREATED_EMAIL.equals(u.get("email").asString())) {
+                createdUserId = u.get("id").asLong();
+                break;
+            }
+        }
+        assertTrue(createdUserId > 0);
+
+        assertEquals(
+            200,
+            send("PATCH", "/api/admin/users/" + createdUserId + "/status", "{\"enabled\":false}", adminToken)
+                .statusCode()
+        );
+        assertEquals(
+            401,
+            send(
+                "POST",
+                "/api/auth/login",
+                "{\"email\":\"" + TEST_CREATED_EMAIL + "\",\"password\":\"UpdatedStrongPass456!\"}",
+                null
+            ).statusCode()
+        );
+        assertEquals(
+            200,
+            send("PATCH", "/api/admin/users/" + createdUserId + "/status", "{\"enabled\":true}", adminToken)
+                .statusCode()
+        );
+        assertEquals(
+            200,
+            send("PATCH", "/api/admin/users/" + createdUserId + "/role", "{\"role\":\"LIBRARIAN\"}", adminToken)
+                .statusCode()
+        );
+        assertEquals(
+            204,
+            send("POST", "/api/admin/users/" + createdUserId + "/reset-password", "{\"newPassword\":\"AdminResetPass789!\"}", adminToken)
+                .statusCode()
+        );
+
+        // 4. Member detail, edit, deactivate, and delete
+        assertEquals(200, send("GET", "/api/members/" + memberId, null, adminToken).statusCode());
+        assertEquals(
+            200,
+            send(
+                "PUT",
+                "/api/members/" + memberId,
+                "{\"fullName\":\"Updated Patron\",\"email\":\"" + TEST_CREATED_EMAIL + "\",\"phone\":\"+855-12-345\",\"notes\":\"VIP\"}",
+                adminToken
+            ).statusCode()
+        );
+        assertEquals(
+            200,
+            send("PATCH", "/api/members/" + memberId + "/status", "{\"active\":false}", adminToken)
+                .statusCode()
+        );
+        assertEquals(204, send("DELETE", "/api/members/" + memberId, null, adminToken).statusCode());
+
+        // 5. Scheduled jobs endpoint requires ADMIN role
+        assertEquals(403, send("POST", "/api/admin/jobs/run-reminders", null, selfToken).statusCode());
+        assertEquals(200, send("POST", "/api/admin/jobs/run-reminders", null, adminToken).statusCode());
     }
 }

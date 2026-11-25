@@ -258,7 +258,7 @@
 
 @media (min-width: 1024px) and (max-height: 820px) {
   .sidebar-illustration {
-    height: 204px;
+    height: 184px;
   }
 }
 
@@ -321,9 +321,10 @@
 
 .sidebar-user-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: 4px var(--space-2);
   min-width: 0;
 }
 
@@ -338,7 +339,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  flex-shrink: 0;
   font-size: 0.7rem;
   white-space: nowrap;
   color: var(--sidebar-text-muted);
@@ -350,6 +351,7 @@
 }
 
 .user-panel-email {
+  flex: 1 1 0%;
   min-width: 0;
   font-size: var(--text-sm);
   font-weight: 600;

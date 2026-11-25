@@ -2,6 +2,7 @@
 package com.library.management.controller;
 
 import com.library.management.dto.BorrowRequest;
+import com.library.management.dto.FineActionRequest;
 import com.library.management.dto.LoanResponse;
 import com.library.management.service.LoanService;
 
@@ -40,6 +41,11 @@ public class LoanController {
         return loanService.getOverdueLoans();
     }
 
+    @GetMapping("/fines")
+    public List<LoanResponse> getFineLoans() {
+        return loanService.getFineLoans();
+    }
+
     @GetMapping("/{id}")
     public LoanResponse getLoan(@PathVariable Long id) {
         return loanService.getLoan(id);
@@ -53,5 +59,21 @@ public class LoanController {
     @PostMapping("/{id}/renew")
     public LoanResponse renewLoan(@PathVariable Long id) {
         return loanService.renewLoan(id);
+    }
+
+    @PostMapping("/{id}/fine/pay")
+    public LoanResponse payFine(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) FineActionRequest request
+    ) {
+        return loanService.payFine(id, request != null ? request.note() : null);
+    }
+
+    @PostMapping("/{id}/fine/waive")
+    public LoanResponse waiveFine(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) FineActionRequest request
+    ) {
+        return loanService.waiveFine(id, request != null ? request.note() : null);
     }
 }

@@ -10,7 +10,12 @@ public record BorrowRequest(
 
     @NotNull
     @Positive
-    Long memberId
+    Long memberId,
+
+    @Positive
+    Long copyId
 ) {
-    
+    public BorrowRequest(Long bookId, Long memberId) {
+        this(bookId, memberId, null);
+    }
 }

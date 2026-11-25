@@ -30,6 +30,7 @@ interface AuthContextValue {
   openSignInModal: () => void;
   closeSignInModal: () => void;
   login: (email: string, password: string) => Promise<AuthUser>;
+  register: (fullName: string, email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 }
 
@@ -168,6 +169,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me;
   }, []);
 
+  const register = useCallback(
+    async (fullName: string, email: string, password: string): Promise<AuthUser> => {
+      const tokenRes = await authApi.register({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+      });
+      const nextSession: StoredSession = {
+        accessToken: tokenRes.accessToken,
+        expiresAt: Date.now() + tokenRes.expiresInSeconds * 1000,
+      };
+      sessionRef.current = nextSession;
+      saveStoredSession(nextSession);
+      setSession(nextSession);
+
+      const me = await authApi.getMe();
+      setUser(me);
+      setSignInModalOpen(false);
+      return me;
+    },
+    [],
+  );
+
   const logout = useCallback(() => {
     clearSession();
   }, [clearSession]);
@@ -188,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       openSignInModal,
       closeSignInModal,
       login,
+      register,
       logout,
     }),
     [
@@ -198,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       openSignInModal,
       closeSignInModal,
       login,
+      register,
       logout,
     ],
   );

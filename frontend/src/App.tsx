@@ -5,14 +5,17 @@ import { holdsApi } from '@/api/holdsApi';
 import { loansApi } from '@/api/loansApi';
 import { memberPortalApi } from '@/api/memberPortalApi';
 import { membersApi } from '@/api/membersApi';
+import { notificationsApi } from '@/api/notificationsApi';
 import { BookDetailModal } from '@/components/forms/BookDetailModal';
 import { BookFormModal } from '@/components/forms/BookFormModal';
 import { BorrowBookModal } from '@/components/forms/BorrowBookModal';
+import { ChangePasswordModal } from '@/components/forms/ChangePasswordModal';
 import {
   CirculationScannerModal,
   type ScannerMode,
 } from '@/components/forms/CirculationScannerModal';
 import { MemberFormModal } from '@/components/forms/MemberFormModal';
+import { MemberHistoryDrawer } from '@/components/forms/MemberHistoryDrawer';
 import { SignInModal } from '@/components/forms/SignInModal';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { Sidebar, type NavTab } from '@/components/layout/Sidebar';
@@ -35,9 +38,11 @@ import type {
   LoanResponse,
   Member,
   MemberBookshelfResponse,
+  NotificationItem,
 } from '@/types/api';
 import { formatCalendarDate } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
+import { formatCurrency } from '@/utils/formatting';
 
 const VALID_TABS: ReadonlyArray<NavTab> = [
   'overview',
@@ -117,15 +122,19 @@ function LibraryWorkspace() {
   const [members, setMembers] = useState<Member[]>([]);
   const [activeLoans, setActiveLoans] = useState<LoanResponse[]>([]);
   const [overdueLoans, setOverdueLoans] = useState<LoanResponse[]>([]);
+  const [fineLoans, setFineLoans] = useState<LoanResponse[]>([]);
   const [activeHolds, setActiveHolds] = useState<HoldResponse[]>([]);
   const [loadingStaffData, setLoadingStaffData] = useState(false);
 
-  // Member self-service bookshelf state
+  // Member self-service bookshelf & notifications state
   const [bookshelf, setBookshelf] = useState<MemberBookshelfResponse | null>(null);
   const [loadingBookshelf, setLoadingBookshelf] = useState(false);
   const [bookshelfError, setBookshelfError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
 
-  // Modals & confirmations
+  // Modals & drawers
   const [bookFormOpen, setBookFormOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [inspectBookId, setInspectBookId] = useState<number | null>(null);
@@ -133,6 +142,9 @@ function LibraryWorkspace() {
   const [borrowPreselectBookId, setBorrowPreselectBookId] = useState<number | null>(null);
   const [borrowPreselectMemberId, setBorrowPreselectMemberId] = useState<number | null>(null);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [inspectMemberId, setInspectMemberId] = useState<number | null>(null);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<ScannerMode>('checkout');
 
@@ -222,21 +234,24 @@ function LibraryWorkspace() {
         setMembers([]);
         setActiveLoans([]);
         setOverdueLoans([]);
+        setFineLoans([]);
         setActiveHolds([]);
         return;
       }
 
       setLoadingStaffData(true);
       try {
-        const [memberList, activeList, overdueList, holdList] = await Promise.all([
+        const [memberList, activeList, overdueList, fineList, holdList] = await Promise.all([
           membersApi.listMembers(signal),
           loansApi.getActiveLoans(signal),
           loansApi.getOverdueLoans(signal),
+          loansApi.getFineLoans(signal),
           holdsApi.getActiveHolds(signal),
         ]);
         setMembers(memberList);
         setActiveLoans(activeList);
         setOverdueLoans(overdueList);
+        setFineLoans(fineList);
         setActiveHolds(holdList);
       } catch (err) {
         if (!signal?.aborted) {
@@ -253,6 +268,31 @@ function LibraryWorkspace() {
       }
     },
     [isStaff, notify],
+  );
+
+  const fetchNotifications = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!isAuthenticated) {
+        setNotifications([]);
+        setUnreadNotifications(0);
+        return;
+      }
+      setLoadingNotifications(true);
+      try {
+        const data = await notificationsApi.listNotifications(signal);
+        if (!signal?.aborted) {
+          setNotifications(data.items);
+          setUnreadNotifications(data.unreadCount);
+        }
+      } catch {
+        // Ignore silent background notification poll failure
+      } finally {
+        if (!signal?.aborted) {
+          setLoadingNotifications(false);
+        }
+      }
+    },
+    [isAuthenticated],
   );
 
   const fetchBookshelf = useCallback(
@@ -281,21 +321,29 @@ function LibraryWorkspace() {
   );
 
   const refreshAllCirculation = useCallback(async () => {
-    await Promise.all([fetchBooks(debouncedSearch), fetchStaffData(), fetchBookshelf()]);
-  }, [fetchBooks, debouncedSearch, fetchStaffData, fetchBookshelf]);
+    await Promise.all([
+      fetchBooks(debouncedSearch),
+      fetchStaffData(),
+      fetchBookshelf(),
+      fetchNotifications(),
+    ]);
+  }, [fetchBooks, debouncedSearch, fetchStaffData, fetchBookshelf, fetchNotifications]);
 
-  // Initial & polled health check
+  // Initial & polled health + notifications check
   useEffect(() => {
     const controller = new AbortController();
     void fetchHealth(controller.signal);
     const interval = window.setInterval(() => {
       void fetchHealth();
+      if (isAuthenticated) {
+        void fetchNotifications();
+      }
     }, 30000);
     return () => {
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [fetchHealth]);
+  }, [fetchHealth, fetchNotifications, isAuthenticated]);
 
   // Fetch public catalog on mount / debounced search change
   useEffect(() => {
@@ -311,12 +359,13 @@ function LibraryWorkspace() {
     return () => controller.abort();
   }, [fetchStaffData]);
 
-  // Fetch patron bookshelf whenever auth status changes
+  // Fetch patron bookshelf and notifications whenever auth status changes
   useEffect(() => {
     const controller = new AbortController();
     void fetchBookshelf(controller.signal);
+    void fetchNotifications(controller.signal);
     return () => controller.abort();
-  }, [fetchBookshelf]);
+  }, [fetchBookshelf, fetchNotifications]);
 
   const handleOpenAddBook = () => {
     setEditingBook(null);
@@ -448,17 +497,21 @@ function LibraryWorkspace() {
       const updated = await loansApi.returnBook(returningLoan.id);
       setReturningLoan(null);
       await refreshAllCirculation();
+      const fineNote =
+        updated.fineAmount && updated.fineAmount > 0
+          ? ` Overdue fine assessed: ${formatCurrency(updated.fineAmount)}.`
+          : '';
       if (updated.heldForMemberName) {
         notify({
           variant: 'info',
           title: 'Book returned & reserved at desk',
-          message: `"${updated.bookTitle}" is held at the circulation desk for ${updated.heldForMemberName} (3-day pickup window).`,
+          message: `"${updated.bookTitle}" is held at the circulation desk for ${updated.heldForMemberName} (3-day pickup window).${fineNote}`,
         });
       } else {
         notify({
           variant: 'success',
           title: 'Book returned',
-          message: `Loan #${updated.id} ("${updated.bookTitle}") marked returned.`,
+          message: `Loan #${updated.id} ("${updated.bookTitle}") marked returned.${fineNote}`,
         });
       }
     } catch (err) {
@@ -470,6 +523,60 @@ function LibraryWorkspace() {
       });
     } finally {
       setConfirmBusy(false);
+    }
+  };
+
+  const handlePayFine = async (loan: LoanResponse, note?: string) => {
+    try {
+      const updated = await loansApi.payFine(loan.id, note);
+      await refreshAllCirculation();
+      notify({
+        variant: 'success',
+        title: 'Fine paid',
+        message: `Recorded ${formatCurrency(updated.fineAmount)} payment for Loan #${updated.id}.`,
+      });
+    } catch (err) {
+      notify({
+        variant: 'error',
+        title: 'Payment failed',
+        message: formatApiErrorMessage(err),
+      });
+    }
+  };
+
+  const handleWaiveFine = async (loan: LoanResponse, note?: string) => {
+    try {
+      const updated = await loansApi.waiveFine(loan.id, note);
+      await refreshAllCirculation();
+      notify({
+        variant: 'info',
+        title: 'Fine waived',
+        message: `Waived ${formatCurrency(updated.fineAmount)} fine for Loan #${updated.id}.`,
+      });
+    } catch (err) {
+      notify({
+        variant: 'error',
+        title: 'Waive failed',
+        message: formatApiErrorMessage(err),
+      });
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: number) => {
+    try {
+      await notificationsApi.markRead(id);
+      await fetchNotifications();
+    } catch {
+      // Ignore silent read update failures
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await notificationsApi.markAllRead();
+      await fetchNotifications();
+    } catch {
+      // Ignore silent read update failures
     }
   };
 
@@ -496,6 +603,7 @@ function LibraryWorkspace() {
         health={health}
         healthError={healthError}
         onRefreshHealth={() => void fetchHealth()}
+        onOpenChangePassword={() => setChangePasswordOpen(true)}
       />
 
       <div className="main-column">
@@ -506,8 +614,18 @@ function LibraryWorkspace() {
           onQuickSearch={focusCatalogSearch}
           onOpenAddBook={handleOpenAddBook}
           onOpenBorrowBook={() => handleOpenBorrow()}
-          onOpenRegisterMember={() => setMemberModalOpen(true)}
+          onOpenRegisterMember={() => {
+            setEditingMember(null);
+            setMemberModalOpen(true);
+          }}
           onOpenScanner={() => handleOpenScanner('checkout')}
+          notifications={notifications}
+          unreadNotificationCount={unreadNotifications}
+          loadingNotifications={loadingNotifications}
+          onRefreshNotifications={() => void fetchNotifications()}
+          onMarkNotificationRead={handleMarkNotificationRead}
+          onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+          onNavigateBookshelf={() => setActiveTab('bookshelf')}
         />
 
         <main id="main-content" tabIndex={-1} className="page-content">
@@ -567,12 +685,15 @@ function LibraryWorkspace() {
             <LoansPage
               activeLoans={activeLoans}
               overdueLoans={overdueLoans}
+              fineLoans={fineLoans}
               activeHolds={activeHolds}
               loading={loadingStaffData}
               onBorrowBook={() => handleOpenBorrow()}
               onOpenScanner={handleOpenScanner}
               onRequestReturnLoan={setReturningLoan}
               onRenewLoan={(loan) => handleRenewLoan(loan, false)}
+              onPayFine={handlePayFine}
+              onWaiveFine={handleWaiveFine}
               onFulfillHold={handleFulfillHold}
               onCancelHold={handleCancelHold}
             />
@@ -583,7 +704,15 @@ function LibraryWorkspace() {
               members={members}
               activeLoans={activeLoans}
               loading={loadingStaffData}
-              onRegisterMember={() => setMemberModalOpen(true)}
+              onRegisterMember={() => {
+                setEditingMember(null);
+                setMemberModalOpen(true);
+              }}
+              onEditMember={(member) => {
+                setEditingMember(member);
+                setMemberModalOpen(true);
+              }}
+              onInspectMember={(member) => setInspectMemberId(member.id)}
               onBorrowForMember={(member) => handleOpenBorrow({ memberId: member.id })}
             />
           ) : null}
@@ -621,6 +750,7 @@ function LibraryWorkspace() {
         onBorrow={(book) => handleOpenBorrow({ bookId: book.id })}
         onDelete={setDeletingBook}
         onPlaceHold={handlePlaceHold}
+        onCopiesChanged={() => void refreshAllCirculation()}
       />
 
       <BorrowBookModal
@@ -648,8 +778,33 @@ function LibraryWorkspace() {
 
       <MemberFormModal
         open={memberModalOpen}
-        onClose={() => setMemberModalOpen(false)}
-        onRegistered={() => void fetchStaffData()}
+        editingMember={editingMember}
+        onClose={() => {
+          setMemberModalOpen(false);
+          setEditingMember(null);
+        }}
+        onSaved={() => void refreshAllCirculation()}
+      />
+
+      <MemberHistoryDrawer
+        memberId={inspectMemberId}
+        onClose={() => setInspectMemberId(null)}
+        onEditMember={(member) => {
+          setEditingMember(member);
+          setMemberModalOpen(true);
+        }}
+        onBorrowForMember={(member) => handleOpenBorrow({ memberId: member.id })}
+        onRequestReturnLoan={setReturningLoan}
+        onRenewLoan={(loan) => handleRenewLoan(loan, false)}
+        onPayFine={handlePayFine}
+        onWaiveFine={handleWaiveFine}
+        onCancelHold={handleCancelHold}
+        onMembersChanged={() => void refreshAllCirculation()}
+      />
+
+      <ChangePasswordModal
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
       />
 
       <ConfirmDialog

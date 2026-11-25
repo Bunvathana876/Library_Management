@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   BookCheck,
   BookOpen,
   CalendarClock,
@@ -9,6 +10,7 @@ import {
   History,
   LogIn,
   QrCode,
+  Receipt,
   RefreshCw,
   Sparkles,
   UserCheck,
@@ -28,7 +30,12 @@ import {
   formatCalendarDate,
   loanProgressPercent,
 } from '@/utils/dates';
-import { formatCallNumber, formatLoanCode, formatMemberCardCode } from '@/utils/formatting';
+import {
+  formatCallNumber,
+  formatCurrency,
+  formatLoanCode,
+  formatMemberCardCode,
+} from '@/utils/formatting';
 
 interface MyBookshelfPageProps {
   bookshelf: MemberBookshelfResponse | null;
@@ -133,6 +140,10 @@ export function MyBookshelfPage({
   const readyHolds = bookshelf.activeHolds.filter((h) => h.status === 'READY_FOR_PICKUP');
   const waitingHolds = bookshelf.activeHolds.filter((h) => h.status === 'WAITING');
   const overdueCount = bookshelf.activeLoans.filter((l) => l.overdue).length;
+  const activeLimit = bookshelf.activeLoanLimit ?? 5;
+  const unpaidFinesTotal = bookshelf.unpaidFinesTotal ?? 0;
+  const fineThreshold = bookshelf.fineBlockThreshold ?? 10;
+  const fineLoans = bookshelf.fineLoans ?? [];
 
   const tabs: ReadonlyArray<TabItem<ShelfTab>> = [
     {
@@ -266,10 +277,35 @@ export function MyBookshelfPage({
         </section>
       ) : null}
 
+      {bookshelf.borrowingBlocked || unpaidFinesTotal > 0 ? (
+        <section
+          className={`alert ${bookshelf.borrowingBlocked ? 'alert-danger' : 'alert-warning'}`}
+          role="status"
+          aria-label="Patron standing and fine summary"
+        >
+          <AlertTriangle size={18} aria-hidden="true" className="alert-icon" />
+          <div>
+            <strong>
+              {bookshelf.borrowingBlocked
+                ? 'Borrowing & Renewals Restricted'
+                : 'Outstanding Overdue Fines'}
+            </strong>
+            <div style={{ marginTop: '2px', fontSize: 'var(--text-sm)' }}>
+              {bookshelf.borrowingBlockReason
+                ? `${bookshelf.borrowingBlockReason}. `
+                : null}
+              Active loans: <strong>{bookshelf.activeLoans.length}/{activeLimit}</strong> · Unpaid fines:{' '}
+              <strong className="tabular-nums">{formatCurrency(unpaidFinesTotal)}</strong> (block limit{' '}
+              {formatCurrency(fineThreshold)}). Settle fines at the circulation desk.
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="kpi-grid" aria-label="My bookshelf summary">
         <StatCard
           label="Active Loans"
-          value={bookshelf.activeLoans.length}
+          value={`${bookshelf.activeLoans.length}/${activeLimit}`}
           foot={overdueCount > 0 ? `${overdueCount} overdue` : 'All loans on schedule'}
           icon={<BookOpen size={16} />}
           tone={overdueCount > 0 ? 'danger' : 'accent'}
@@ -282,16 +318,20 @@ export function MyBookshelfPage({
           tone={readyHolds.length > 0 ? 'success' : 'info'}
         />
         <StatCard
-          label="Waiting Holds"
-          value={waitingHolds.length}
-          foot="Queue reservations"
-          icon={<Clock size={16} />}
-          tone="warning"
+          label="Unpaid Fines"
+          value={formatCurrency(unpaidFinesTotal)}
+          foot={
+            unpaidFinesTotal > 0
+              ? `Blocked at ${formatCurrency(fineThreshold)}`
+              : 'Account in good standing'
+          }
+          icon={<Receipt size={16} />}
+          tone={unpaidFinesTotal >= fineThreshold ? 'danger' : unpaidFinesTotal > 0 ? 'warning' : 'success'}
         />
         <StatCard
-          label="Returned Books"
+          label="Returned & Holds"
           value={bookshelf.returnHistory.length}
-          foot="Completed checkouts"
+          foot={`${waitingHolds.length} waiting in queue`}
           icon={<BookCheck size={16} />}
           tone="success"
         />
@@ -346,11 +386,16 @@ export function MyBookshelfPage({
                           <div className="queue-row-top">
                             <span className="catalog-id-badge mono">{formatLoanCode(loan.id)}</span>
                             <span className="catalog-id-badge mono">
-                              {formatCallNumber(loan.bookId)}
+                              {loan.copyBarcode || formatCallNumber(loan.bookId)}
                             </span>
                             <StatusBadge tone={loan.overdue ? 'danger' : 'info'}>
-                              {loan.overdue ? 'Overdue' : 'Checked Out'}
+                              {loan.overdue ? `${loan.overdueDays ?? 0}d Overdue` : 'Checked Out'}
                             </StatusBadge>
+                            {(loan.fineAmount ?? 0) > 0 ? (
+                              <span className="badge badge-danger tabular-nums">
+                                Fine {formatCurrency(loan.fineAmount)}
+                              </span>
+                            ) : null}
                             <span className="renewal-pill tabular-nums">
                               Renewals {loan.renewalCount}/{loan.maxRenewals}
                             </span>
@@ -584,6 +629,11 @@ export function MyBookshelfPage({
                         <td className="tabular-nums">{formatCalendarDate(loan.returnedOn)}</td>
                         <td className="tabular-nums">
                           {loan.renewalCount}/{loan.maxRenewals}
+                          {loan.fineStatus && loan.fineStatus !== 'NONE' ? (
+                            <div className="table-subline">
+                              Fine {formatCurrency(loan.fineAmount)} ({loan.fineStatus})
+                            </div>
+                          ) : null}
                         </td>
                         <td>
                           <button
@@ -601,6 +651,37 @@ export function MyBookshelfPage({
                 </table>
               </div>
             )}
+            {fineLoans.length > 0 ? (
+              <div className="form-stack" style={{ gap: '0.5rem', marginTop: '1rem' }}>
+                <h3 className="card-title" style={{ fontSize: '0.95rem' }}>
+                  Fine Ledger
+                </h3>
+                <div className="queue-list" style={{ padding: 0 }}>
+                  {fineLoans.map((f) => (
+                    <div key={f.id} className="queue-row">
+                      <div className="queue-row-main">
+                        <div className="queue-row-top">
+                          <span className="catalog-id-badge mono">{formatLoanCode(f.id)}</span>
+                          <StatusBadge
+                            tone={
+                              f.fineStatus === 'UNPAID'
+                                ? 'danger'
+                                : f.fineStatus === 'PAID'
+                                  ? 'success'
+                                  : 'neutral'
+                            }
+                          >
+                            {f.fineStatus} · {formatCurrency(f.fineAmount)}
+                          </StatusBadge>
+                        </div>
+                        <div className="queue-row-title">{f.bookTitle}</div>
+                        {f.fineNote ? <div className="queue-row-sub">Note: {f.fineNote}</div> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

@@ -1,11 +1,27 @@
 import { apiRequest } from '@/api/httpClient';
-import type { Book, BookMetadataResponse, BookRequest } from '@/types/api';
+import type {
+  Book,
+  BookCopyRequest,
+  BookCopyResponse,
+  BookMetadataResponse,
+  BookRequest,
+} from '@/types/api';
 
 export const booksApi = {
-  listBooks(search = '', signal?: AbortSignal): Promise<Book[]> {
-    const trimmed = search.trim();
-    const query = trimmed ? `?search=${encodeURIComponent(trimmed)}` : '';
-    return apiRequest<Book[]>(`/api/books${query}`, {
+  listBooks(search = '', signal?: AbortSignal, category = ''): Promise<Book[]> {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (category.trim()) params.set('category', category.trim());
+    const qs = params.toString();
+    return apiRequest<Book[]>(`/api/books${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+      auth: false,
+      signal,
+    });
+  },
+
+  listCategories(signal?: AbortSignal): Promise<string[]> {
+    return apiRequest<string[]>('/api/books/categories', {
       method: 'GET',
       auth: false,
       signal,
@@ -17,6 +33,38 @@ export const booksApi = {
       method: 'GET',
       auth: false,
       signal,
+    });
+  },
+
+  listCopies(bookId: number, signal?: AbortSignal): Promise<BookCopyResponse[]> {
+    return apiRequest<BookCopyResponse[]>(`/api/books/${bookId}/copies`, {
+      method: 'GET',
+      auth: false,
+      signal,
+    });
+  },
+
+  addCopy(bookId: number, request?: BookCopyRequest): Promise<BookCopyResponse> {
+    return apiRequest<BookCopyResponse>(`/api/books/${bookId}/copies`, {
+      method: 'POST',
+      body: request ?? {},
+    });
+  },
+
+  updateCopy(
+    bookId: number,
+    copyId: number,
+    request: BookCopyRequest,
+  ): Promise<BookCopyResponse> {
+    return apiRequest<BookCopyResponse>(`/api/books/${bookId}/copies/${copyId}`, {
+      method: 'PATCH',
+      body: request,
+    });
+  },
+
+  deleteCopy(bookId: number, copyId: number): Promise<void> {
+    return apiRequest<void>(`/api/books/${bookId}/copies/${copyId}`, {
+      method: 'DELETE',
     });
   },
 

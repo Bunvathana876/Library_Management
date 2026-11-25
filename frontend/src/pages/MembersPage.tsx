@@ -1,5 +1,16 @@
 import { useId, useMemo, useState } from 'react';
-import { Lock, LogIn, QrCode, Repeat, Search, UserPlus, Users, X } from 'lucide-react';
+import {
+  History,
+  Lock,
+  LogIn,
+  Pencil,
+  QrCode,
+  Repeat,
+  Search,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ModalDialog } from '@/components/ui/ModalDialog';
@@ -7,13 +18,15 @@ import { QrCodeCanvas } from '@/components/ui/QrCodeCanvas';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { LoanResponse, Member } from '@/types/api';
-import { formatMemberCardCode, getInitials } from '@/utils/formatting';
+import { formatCurrency, formatMemberCardCode, getInitials } from '@/utils/formatting';
 
 interface MembersPageProps {
   members: Member[];
   activeLoans: LoanResponse[];
   loading: boolean;
   onRegisterMember: () => void;
+  onEditMember: (member: Member) => void;
+  onInspectMember: (member: Member) => void;
   onBorrowForMember: (member: Member) => void;
 }
 
@@ -22,6 +35,8 @@ export function MembersPage({
   activeLoans,
   loading,
   onRegisterMember,
+  onEditMember,
+  onInspectMember,
   onBorrowForMember,
 }: MembersPageProps) {
   const { isAuthenticated, isStaff, openSignInModal } = useAuth();
@@ -47,7 +62,9 @@ export function MembersPage({
       (m) =>
         m.fullName.toLowerCase().includes(q) ||
         m.email.toLowerCase().includes(q) ||
-        String(m.id).includes(q),
+        (m.phone ? m.phone.toLowerCase().includes(q) : false) ||
+        String(m.id).includes(q) ||
+        formatMemberCardCode(m.id).toLowerCase().includes(q),
     );
   }, [members, search]);
 
@@ -82,8 +99,8 @@ export function MembersPage({
             type="search"
             className="input-control"
             enterKeyHint="search"
-            aria-label="Search members by name, email, or ID"
-            placeholder="Search by name, email, or member ID"
+            aria-label="Search members by name, email, phone, or card ID"
+            placeholder="Search by name, email, phone, or MEM-ID"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -144,27 +161,31 @@ export function MembersPage({
             <table
               className="data-table"
               style={{
-                ['--label-2' as string]: '"Email"',
-                ['--label-3' as string]: '"Active Loans"',
+                ['--label-2' as string]: '"Contact"',
+                ['--label-3' as string]: '"Loans & Fines"',
                 ['--label-4' as string]: '"Standing"',
-                ['--label-5' as string]: '"Action"',
+                ['--label-5' as string]: '"Actions"',
               }}
             >
               <caption id={tableCaptionId}>
-                Registered library members and current loan counts
+                Registered library members, borrowing standing, and unpaid fines
               </caption>
               <thead>
                 <tr>
                   <th scope="col">Member &amp; ID</th>
-                  <th scope="col">Email</th>
-                  <th scope="col">Active Loans</th>
+                  <th scope="col">Contact</th>
+                  <th scope="col">Loans &amp; Fines</th>
                   <th scope="col">Standing</th>
-                  <th scope="col">Action</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMembers.map((member) => {
-                  const stats = loanStatsByMember.get(member.id) ?? { active: 0, overdue: 0 };
+                  const fallbackStats = loanStatsByMember.get(member.id) ?? { active: 0, overdue: 0 };
+                  const activeCount = member.activeLoanCount ?? fallbackStats.active;
+                  const overdueCount = member.overdueLoanCount ?? fallbackStats.overdue;
+                  const unpaidFines = member.unpaidFinesTotal ?? 0;
+                  const isActiveMember = member.active !== false;
                   return (
                     <tr key={member.id}>
                       <th scope="row">
@@ -180,36 +201,75 @@ export function MembersPage({
                           </div>
                         </div>
                       </th>
-                      <td>{member.email}</td>
-                      <td className="tabular-nums">{stats.active} active</td>
                       <td>
-                        {stats.overdue > 0 ? (
-                          <StatusBadge tone="danger">{stats.overdue} Overdue</StatusBadge>
-                        ) : stats.active > 0 ? (
-                          <StatusBadge tone="info">Borrowing</StatusBadge>
-                        ) : (
-                          <StatusBadge tone="success">Good Standing</StatusBadge>
-                        )}
+                        <div>{member.email}</div>
+                        {member.phone ? <div className="mono table-subline">{member.phone}</div> : null}
+                      </td>
+                      <td>
+                        <div className="tabular-nums">{activeCount}/5 active</div>
+                        {unpaidFines > 0 ? (
+                          <div className="table-subline" style={{ color: 'var(--danger)' }}>
+                            {formatCurrency(unpaidFines)} unpaid
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <div className="form-stack" style={{ gap: '4px', alignItems: 'flex-start' }}>
+                          {!isActiveMember ? (
+                            <StatusBadge tone="neutral">Inactive</StatusBadge>
+                          ) : member.borrowingBlocked ? (
+                            <StatusBadge tone="danger">Blocked</StatusBadge>
+                          ) : overdueCount > 0 ? (
+                            <StatusBadge tone="danger">{overdueCount} Overdue</StatusBadge>
+                          ) : activeCount > 0 ? (
+                            <StatusBadge tone="info">Borrowing</StatusBadge>
+                          ) : (
+                            <StatusBadge tone="success">Good Standing</StatusBadge>
+                          )}
+                          {member.borrowingBlocked && member.borrowingBlockReason ? (
+                            <span className="table-subline">{member.borrowingBlockReason}</span>
+                          ) : null}
+                        </div>
                       </td>
                       <td>
                         <div className="row-actions">
                           <button
                             type="button"
-                            className="btn btn-ghost btn-sm"
-                            aria-label={`Show QR pass for ${member.fullName}`}
-                            onClick={() => setQrMember(member)}
+                            className="btn btn-secondary btn-sm"
+                            aria-label={`View history for ${member.fullName}`}
+                            onClick={() => onInspectMember(member)}
                           >
-                            <QrCode size={14} aria-hidden="true" />
-                            <span>QR Pass</span>
+                            <History size={14} aria-hidden="true" />
+                            <span>History</span>
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
+                            className="btn btn-ghost btn-icon icon-square-btn"
+                            aria-label={`Show QR pass for ${member.fullName}`}
+                            title="Member QR Pass"
+                            onClick={() => setQrMember(member)}
+                          >
+                            <QrCode size={14} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon icon-square-btn"
+                            aria-label={`Edit ${member.fullName}`}
+                            title="Edit member"
+                            onClick={() => onEditMember(member)}
+                          >
+                            <Pencil size={14} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={!isActiveMember || Boolean(member.borrowingBlocked)}
+                            title={member.borrowingBlockReason ?? 'Issue a loan'}
                             aria-label={`Borrow Book for ${member.fullName}`}
                             onClick={() => onBorrowForMember(member)}
                           >
                             <Repeat size={14} aria-hidden="true" />
-                            <span>Borrow Book</span>
+                            <span>Borrow</span>
                           </button>
                         </div>
                       </td>

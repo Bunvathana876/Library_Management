@@ -1,14 +1,19 @@
 
 package com.library.management.service;
 
+import com.library.management.config.CirculationPolicyProperties;
 import com.library.management.dto.BorrowRequest;
 import com.library.management.dto.LoanResponse;
 import com.library.management.exception.BusinessRuleException;
 import com.library.management.model.Book;
+import com.library.management.model.BookCopy;
+import com.library.management.model.BookCopyStatus;
+import com.library.management.model.FineStatus;
 import com.library.management.model.Hold;
 import com.library.management.model.HoldStatus;
 import com.library.management.model.Loan;
 import com.library.management.model.Member;
+import com.library.management.repository.BookCopyRepository;
 import com.library.management.repository.BookRepository;
 import com.library.management.repository.HoldRepository;
 import com.library.management.repository.LoanRepository;
@@ -22,8 +27,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -245,5 +252,92 @@ class LoanServiceTest {
         LoanResponse fulfilledBorrow = loanService.borrow(new BorrowRequest(1L, 3L));
         assertEquals(HoldStatus.FULFILLED, waitingHold.getStatus());
         assertEquals("Bob", fulfilledBorrow.memberName());
+    }
+
+    @Test
+    void shouldRejectBorrowWhenActiveLoanLimitOrFineThresholdReached() {
+        Book book = new Book("DDIA", "Martin Kleppmann", 2017);
+        ReflectionTestUtils.setField(book, "id", 1L);
+        Member member = new Member("Alice", "alice@example.com");
+        ReflectionTestUtils.setField(member, "id", 2L);
+
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(memberRepository.findById(2L)).thenReturn(Optional.of(member));
+        when(loanRepository.countByMemberIdAndReturnedOnIsNull(2L)).thenReturn(5L);
+
+        BusinessRuleException limitEx = assertThrows(
+            BusinessRuleException.class,
+            () -> loanService.borrow(new BorrowRequest(1L, 2L))
+        );
+        assertTrue(limitEx.getMessage().contains("limit"));
+
+        // Below limit, but unpaid fines exceed $10.00 threshold
+        when(loanRepository.countByMemberIdAndReturnedOnIsNull(2L)).thenReturn(1L);
+        Loan unpaidLoan = new Loan(book, member, LocalDate.now().minusDays(30), LocalDate.now().minusDays(16));
+        unpaidLoan.markReturned(LocalDate.now().minusDays(1));
+        unpaidLoan.assessFine(new BigDecimal("12.00"));
+        when(loanRepository.findAllByMemberIdAndFineStatus(2L, FineStatus.UNPAID))
+            .thenReturn(List.of(unpaidLoan));
+
+        BusinessRuleException fineEx = assertThrows(
+            BusinessRuleException.class,
+            () -> loanService.borrow(new BorrowRequest(1L, 2L))
+        );
+        assertTrue(fineEx.getMessage().contains("unpaid fines"));
+    }
+
+    @Test
+    void shouldAssessOverdueFineOnReturnAndSupportPayOrWaiveAndMultiCopyBorrow() {
+        BookCopyRepository copyRepo = mock(BookCopyRepository.class);
+        NotificationService notifService = mock(NotificationService.class);
+        CirculationPolicyProperties policy = new CirculationPolicyProperties(
+            5, new BigDecimal("0.50"), new BigDecimal("10.00"), 2
+        );
+        LoanService fullService = new LoanService(
+            bookRepository,
+            memberRepository,
+            loanRepository,
+            holdRepository,
+            copyRepo,
+            notifService,
+            policy
+        );
+
+        Book book = new Book("DDIA", "Martin Kleppmann", 2017);
+        ReflectionTestUtils.setField(book, "id", 1L);
+        BookCopy copy1 = new BookCopy(book, "CPY-0001-01", BookCopyStatus.AVAILABLE, "CS-A", null);
+        ReflectionTestUtils.setField(copy1, "id", 101L);
+        BookCopy copy2 = new BookCopy(book, "CPY-0001-02", BookCopyStatus.AVAILABLE, "CS-A", null);
+        ReflectionTestUtils.setField(copy2, "id", 102L);
+
+        Member alice = new Member("Alice", "alice@example.com");
+        ReflectionTestUtils.setField(alice, "id", 2L);
+
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(memberRepository.findById(2L)).thenReturn(Optional.of(alice));
+        when(copyRepo.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(copy1, copy2));
+        when(loanRepository.save(any(Loan.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LoanResponse borrowed = fullService.borrow(new BorrowRequest(1L, 2L));
+        assertEquals("CPY-0001-01", borrowed.copyBarcode());
+        assertEquals(BookCopyStatus.LOANED, copy1.getStatus());
+
+        // Simulate 4 days overdue return -> $2.00 UNPAID fine
+        Loan overdueLoan = new Loan(book, copy1, alice, LocalDate.now().minusDays(18), LocalDate.now().minusDays(4));
+        ReflectionTestUtils.setField(overdueLoan, "id", 55L);
+        when(loanRepository.findByIdForUpdate(55L)).thenReturn(Optional.of(overdueLoan));
+        when(copyRepo.findByIdForUpdate(101L)).thenReturn(Optional.of(copy1));
+        when(holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.WAITING))
+            .thenReturn(Optional.empty());
+
+        LoanResponse returned = fullService.returnBook(55L);
+        assertEquals(new BigDecimal("2.00"), returned.fineAmount());
+        assertEquals(FineStatus.UNPAID, returned.fineStatus());
+        assertEquals(BookCopyStatus.AVAILABLE, copy1.getStatus());
+        verify(notifService).notifyFineAssessed(overdueLoan);
+
+        LoanResponse paid = fullService.payFine(55L, "Cash receipt");
+        assertEquals(FineStatus.PAID, paid.fineStatus());
+        assertEquals("Cash receipt", paid.fineNote());
     }
 }

@@ -28,38 +28,50 @@ import {
   loanProgressPercent,
 } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
-import { formatCallNumber, formatLoanCode, formatMemberCardCode } from '@/utils/formatting';
+import {
+  formatCallNumber,
+  formatCurrency,
+  formatLoanCode,
+  formatMemberCardCode,
+} from '@/utils/formatting';
 
 interface LoansPageProps {
   activeLoans: LoanResponse[];
   overdueLoans: LoanResponse[];
+  fineLoans: LoanResponse[];
   activeHolds: HoldResponse[];
   loading: boolean;
   onBorrowBook: () => void;
   onOpenScanner: (mode: ScannerMode) => void;
   onRequestReturnLoan: (loan: LoanResponse) => void;
   onRenewLoan: (loan: LoanResponse) => Promise<void>;
+  onPayFine: (loan: LoanResponse, note?: string) => Promise<void>;
+  onWaiveFine: (loan: LoanResponse, note?: string) => Promise<void>;
   onFulfillHold: (hold: HoldResponse) => Promise<void>;
   onCancelHold: (hold: HoldResponse) => Promise<void>;
 }
 
-type LoanTab = 'active' | 'overdue' | 'holds';
+type LoanTab = 'active' | 'overdue' | 'holds' | 'fines';
 
 export function LoansPage({
   activeLoans,
   overdueLoans,
+  fineLoans,
   activeHolds,
   loading,
   onBorrowBook,
   onOpenScanner,
   onRequestReturnLoan,
   onRenewLoan,
+  onPayFine,
+  onWaiveFine,
   onFulfillHold,
   onCancelHold,
 }: LoansPageProps) {
   const { isAuthenticated, isStaff, openSignInModal } = useAuth();
   const tableCaptionId = useId();
   const holdsCaptionId = useId();
+  const finesCaptionId = useId();
   const tabsPrefix = useId();
 
   const [loanTab, setLoanTab] = useState<LoanTab>('active');
@@ -82,7 +94,8 @@ export function LoansPage({
         loan.bookTitle.toLowerCase().includes(q) ||
         loan.memberName.toLowerCase().includes(q) ||
         String(loan.id).includes(q) ||
-        formatLoanCode(loan.id).toLowerCase().includes(q),
+        formatLoanCode(loan.id).toLowerCase().includes(q) ||
+        (loan.copyBarcode ? loan.copyBarcode.toLowerCase().includes(q) : false),
     );
   }, [loanTab, activeLoans, overdueLoans, filterText]);
 
@@ -98,6 +111,18 @@ export function LoansPage({
     );
   }, [activeHolds, filterText]);
 
+  const visibleFines = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    if (!q) return fineLoans;
+    return fineLoans.filter(
+      (loan) =>
+        loan.bookTitle.toLowerCase().includes(q) ||
+        loan.memberName.toLowerCase().includes(q) ||
+        String(loan.id).includes(q) ||
+        formatLoanCode(loan.id).toLowerCase().includes(q),
+    );
+  }, [fineLoans, filterText]);
+
   if (!isStaff) {
     return (
       <EmptyState
@@ -106,7 +131,7 @@ export function LoansPage({
         description={
           isAuthenticated
             ? 'Your current role cannot view the circulation desk. Sign in with a LIBRARIAN or ADMIN account, or manage your personal loans in My Bookshelf.'
-            : 'Authenticate with an ADMIN or LIBRARIAN account to inspect active loans, overdue alerts, holds queue, and process returns.'
+            : 'Authenticate with an ADMIN or LIBRARIAN account to inspect active loans, overdue alerts, fines, holds queue, and process returns.'
         }
         action={
           !isAuthenticated ? (
@@ -155,6 +180,24 @@ export function LoansPage({
     }
   };
 
+  const handlePayFine = async (loan: LoanResponse) => {
+    setBusyLoanId(loan.id);
+    try {
+      await onPayFine(loan);
+    } finally {
+      setBusyLoanId(null);
+    }
+  };
+
+  const handleWaiveFine = async (loan: LoanResponse) => {
+    setBusyLoanId(loan.id);
+    try {
+      await onWaiveFine(loan);
+    } finally {
+      setBusyLoanId(null);
+    }
+  };
+
   const handleFulfill = async (hold: HoldResponse) => {
     setBusyHoldId(hold.id);
     try {
@@ -173,10 +216,13 @@ export function LoansPage({
     }
   };
 
+  const unpaidFinesCount = fineLoans.filter((l) => l.fineStatus === 'UNPAID').length;
+
   const tabs: ReadonlyArray<TabItem<LoanTab>> = [
     { id: 'active', label: 'Active Loans', count: activeLoans.length, icon: <Repeat size={15} /> },
     { id: 'overdue', label: 'Overdue', count: overdueLoans.length, icon: <AlertTriangle size={15} /> },
     { id: 'holds', label: 'Holds Queue', count: activeHolds.length, icon: <Clock size={15} /> },
+    { id: 'fines', label: 'Fines Desk', count: unpaidFinesCount, icon: <Receipt size={15} /> },
   ];
 
   return (
@@ -197,7 +243,7 @@ export function LoansPage({
               type="search"
               className="input-control"
               enterKeyHint="search"
-              aria-label="Filter loans or holds by book, member, or ID"
+              aria-label="Filter loans, fines, or holds by book, member, or ID"
               placeholder="Filter by book, member, or ID"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
@@ -265,6 +311,9 @@ export function LoansPage({
             <div className="queue-row-main">
               <div className="queue-row-top">
                 <span className="mono queue-row-title">{formatLoanCode(lookupLoan.id)}</span>
+                {lookupLoan.copyBarcode ? (
+                  <span className="catalog-id-badge mono">{lookupLoan.copyBarcode}</span>
+                ) : null}
                 <span className="queue-row-title">{lookupLoan.bookTitle}</span>
                 <StatusBadge
                   tone={lookupLoan.returnedOn ? 'success' : lookupLoan.overdue ? 'danger' : 'info'}
@@ -274,6 +323,11 @@ export function LoansPage({
                 <span className="renewal-pill tabular-nums">
                   Renewals {lookupLoan.renewalCount}/{lookupLoan.maxRenewals}
                 </span>
+                {(lookupLoan.fineAmount ?? 0) > 0 ? (
+                  <span className="badge badge-warning tabular-nums">
+                    Fine {formatCurrency(lookupLoan.fineAmount)} ({lookupLoan.fineStatus})
+                  </span>
+                ) : null}
               </div>
               <div className="queue-row-sub">
                 Member: <strong>{lookupLoan.memberName}</strong> ({formatMemberCardCode(lookupLoan.memberId)}) · Borrowed{' '}
@@ -325,12 +379,152 @@ export function LoansPage({
         aria-labelledby={`${tabsPrefix}-tab-${loanTab}`}
         tabIndex={
           (loanTab === 'holds' && visibleHolds.length === 0) ||
-          (loanTab !== 'holds' && visibleLoans.length === 0)
+          (loanTab === 'fines' && visibleFines.length === 0) ||
+          ((loanTab === 'active' || loanTab === 'overdue') && visibleLoans.length === 0)
             ? 0
             : undefined
         }
       >
-        {loanTab === 'holds' ? (
+        {loanTab === 'fines' ? (
+          loading && fineLoans.length === 0 ? (
+            <TableSkeleton rows={4} label="Loading overdue fines ledger" />
+          ) : visibleFines.length === 0 ? (
+            <EmptyState
+              icon={<CheckCircle2 size={22} />}
+              title={filterText ? 'No matching fine records' : 'No overdue fines recorded'}
+              description={
+                filterText
+                  ? `No fine records matched "${filterText}".`
+                  : 'All active and returned loans have zero outstanding overdue fines.'
+              }
+              action={
+                filterText ? (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFilterText('')}>
+                    Clear Filter
+                  </button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <section className="card" aria-label="Overdue fines management">
+              <div className="card-header">
+                <div>
+                  <h2 className="card-title">Overdue Fines &amp; Standing Ledger</h2>
+                  <p className="card-subtitle">
+                    $0.50/day accrues on overdue checkouts; unpaid fines lock borrowing/renewals at $10.00
+                  </p>
+                </div>
+              </div>
+
+              <div
+                tabIndex={0}
+                role="region"
+                aria-labelledby={finesCaptionId}
+                className="table-wrapper"
+              >
+                <table
+                  className="data-table"
+                  style={{
+                    ['--label-2' as string]: '"Member"',
+                    ['--label-3' as string]: '"Return State"',
+                    ['--label-4' as string]: '"Fine"',
+                    ['--label-5' as string]: '"Action"',
+                  }}
+                >
+                  <caption id={finesCaptionId}>Overdue fine accruals and settlement status</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Book &amp; Loan ID</th>
+                      <th scope="col">Member</th>
+                      <th scope="col">Return State</th>
+                      <th scope="col">Fine &amp; Status</th>
+                      <th scope="col">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleFines.map((loan) => (
+                      <tr key={loan.id}>
+                        <th scope="row">
+                          <div>{loan.bookTitle}</div>
+                          <div className="mono table-subline">
+                            {formatLoanCode(loan.id)} · {loan.copyBarcode || formatCallNumber(loan.bookId)}
+                          </div>
+                        </th>
+                        <td>
+                          <div>{loan.memberName}</div>
+                          <div className="mono table-subline">{formatMemberCardCode(loan.memberId)}</div>
+                        </td>
+                        <td>
+                          {loan.returnedOn ? (
+                            <div>
+                              Returned <span className="tabular-nums">{formatCalendarDate(loan.returnedOn)}</span>
+                              <div className="table-subline">{loan.overdueDays ?? 0} days overdue</div>
+                            </div>
+                          ) : (
+                            <div>
+                              <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Still Checked Out</span>
+                              <div className="table-subline">{loan.overdueDays ?? 0} days overdue (accruing)</div>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <div className="form-stack" style={{ gap: '4px', alignItems: 'flex-start' }}>
+                            <StatusBadge
+                              tone={
+                                loan.fineStatus === 'UNPAID'
+                                  ? 'danger'
+                                  : loan.fineStatus === 'PAID'
+                                    ? 'success'
+                                    : 'neutral'
+                              }
+                            >
+                              {loan.fineStatus} · {formatCurrency(loan.fineAmount)}
+                            </StatusBadge>
+                            {loan.fineNote ? <span className="table-subline">{loan.fineNote}</span> : null}
+                          </div>
+                        </td>
+                        <td>
+                          {!loan.returnedOn ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => onRequestReturnLoan(loan)}
+                            >
+                              Return First
+                            </button>
+                          ) : loan.fineStatus === 'UNPAID' ? (
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                disabled={busyLoanId === loan.id}
+                                onClick={() => void handlePayFine(loan)}
+                              >
+                                {busyLoanId === loan.id ? 'Saving…' : 'Mark Paid'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                disabled={busyLoanId === loan.id}
+                                onClick={() => void handleWaiveFine(loan)}
+                              >
+                                Waive
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: 'var(--text-sm)' }}>
+                              Settled {loan.fineSettledAt ? formatCalendarDate(loan.fineSettledAt.slice(0, 10)) : ''}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )
+        ) : loanTab === 'holds' ? (
           loading && activeHolds.length === 0 ? (
             <TableSkeleton rows={4} label="Loading holds queue" />
           ) : visibleHolds.length === 0 ? (
@@ -392,7 +586,7 @@ export function LoansPage({
                         <th scope="row">
                           <div>{hold.bookTitle}</div>
                           <div className="mono table-subline">
-                            {formatCallNumber(hold.bookId)} · Hold #{hold.id}
+                            {hold.copyBarcode || formatCallNumber(hold.bookId)} · Hold #{hold.id}
                           </div>
                         </th>
                         <td>
@@ -528,7 +722,7 @@ export function LoansPage({
                         <th scope="row">
                           <div>{loan.bookTitle}</div>
                           <div className="mono table-subline">
-                            {formatLoanCode(loan.id)} · {formatCallNumber(loan.bookId)}
+                            {formatLoanCode(loan.id)} · {loan.copyBarcode || formatCallNumber(loan.bookId)}
                           </div>
                         </th>
                         <td>
@@ -559,8 +753,13 @@ export function LoansPage({
                         <td>
                           <div className="form-stack" style={{ gap: '4px', alignItems: 'flex-start' }}>
                             <StatusBadge tone={loan.overdue ? 'danger' : 'info'}>
-                              {loan.overdue ? 'Overdue' : 'Active'}
+                              {loan.overdue ? `${loan.overdueDays ?? 0}d Overdue` : 'Active'}
                             </StatusBadge>
+                            {(loan.fineAmount ?? 0) > 0 ? (
+                              <span className="badge badge-danger tabular-nums">
+                                Fine {formatCurrency(loan.fineAmount)}
+                              </span>
+                            ) : null}
                             <span className="renewal-pill tabular-nums">
                               Renewals {loan.renewalCount}/{loan.maxRenewals}
                             </span>

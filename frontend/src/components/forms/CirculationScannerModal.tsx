@@ -11,6 +11,7 @@ import {
   ScanLine,
   UserCheck,
 } from 'lucide-react';
+import { booksApi } from '@/api/booksApi';
 import { loansApi } from '@/api/loansApi';
 import { AccessibleTabs, type TabItem } from '@/components/ui/AccessibleTabs';
 import { BookCoverImage } from '@/components/ui/BookCoverImage';
@@ -26,7 +27,12 @@ import {
 } from '@/utils/circulationCodes';
 import { describeLoanSchedule, formatCalendarDate, previewDueDate } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
-import { formatCallNumber, formatLoanCode, formatMemberCardCode } from '@/utils/formatting';
+import {
+  formatCallNumber,
+  formatCurrency,
+  formatLoanCode,
+  formatMemberCardCode,
+} from '@/utils/formatting';
 
 export type ScannerMode = 'checkout' | 'return';
 
@@ -77,6 +83,8 @@ export function CirculationScannerModal({
   const [scanError, setScanError] = useState<string | null>(null);
 
   const [selectedBookId, setSelectedBookId] = useState<string>('');
+  const [selectedCopyId, setSelectedCopyId] = useState<number | null>(null);
+  const [selectedCopyBarcode, setSelectedCopyBarcode] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [matchedLoanId, setMatchedLoanId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -113,6 +121,8 @@ export function CirculationScannerModal({
     setScanError(null);
     setScanMessage('');
     setSelectedBookId('');
+    setSelectedCopyId(null);
+    setSelectedCopyBarcode(null);
     setSelectedMemberId('');
     setMatchedLoanId(null);
     setCameraError(null);
@@ -161,6 +171,25 @@ export function CirculationScannerModal({
       const matchedBook = matchBookFromCode(trimmed, books);
       if (matchedBook) {
         setSelectedBookId(String(matchedBook.id));
+        setSelectedCopyId(null);
+        setSelectedCopyBarcode(null);
+        if (parsed?.kind === 'copy') {
+          const scannedBarcode = parsed.barcode;
+          booksApi
+            .listCopies(matchedBook.id)
+            .then((copies) => {
+              const foundCopy = copies.find(
+                (c) => c.barcode.toUpperCase() === scannedBarcode,
+              );
+              if (foundCopy) {
+                setSelectedCopyId(foundCopy.id);
+                setSelectedCopyBarcode(foundCopy.barcode);
+              }
+            })
+            .catch(() => {
+              // Auto-assign on borrow if lookup unavailable
+            });
+        }
         const readyHold = activeHolds.find(
           (h) => h.bookId === matchedBook.id && h.status === 'READY_FOR_PICKUP',
         );
@@ -175,7 +204,7 @@ export function CirculationScannerModal({
           );
         } else {
           setScanMessage(
-            `Selected book "${matchedBook.title}" (${formatCallNumber(matchedBook.id)}). Scan a member QR or choose a borrower below.`,
+            `Selected book "${matchedBook.title}" (${parsed?.kind === 'copy' ? parsed.barcode : formatCallNumber(matchedBook.id)}). Scan a member QR or choose a borrower below.`,
           );
         }
         return;
@@ -459,9 +488,12 @@ export function CirculationScannerModal({
       const created = await loansApi.borrowBook({
         bookId: selectedBook.id,
         memberId: selectedMember.id,
+        ...(selectedCopyId ? { copyId: selectedCopyId } : {}),
       });
       onCompleted();
       setSelectedBookId('');
+      setSelectedCopyId(null);
+      setSelectedCopyBarcode(null);
       setScanMessage(`Checked out "${created.bookTitle}" to ${created.memberName}. Ready for next book.`);
       notify({
         variant: 'success',
@@ -705,6 +737,7 @@ export function CirculationScannerModal({
                       <div className="queue-row-title">{selectedBook.title}</div>
                       <div className="table-subline">
                         {selectedBook.author} ·{' '}
+                        {selectedCopyBarcode ? `${selectedCopyBarcode} · ` : ''}
                         {readyHoldForSelectedBook
                           ? `Reserved for ${readyHoldForSelectedBook.memberName}`
                           : selectedBook.available
@@ -739,7 +772,10 @@ export function CirculationScannerModal({
                     <div style={{ minWidth: 0 }}>
                       <div className="queue-row-title">{selectedMember.fullName}</div>
                       <div className="table-subline mono">
-                        {formatMemberCardCode(selectedMember.id)} · {selectedMember.email}
+                        {formatMemberCardCode(selectedMember.id)} · {selectedMember.activeLoanCount ?? 0}/5 loans
+                        {(selectedMember.unpaidFinesTotal ?? 0) > 0
+                          ? ` · ${formatCurrency(selectedMember.unpaidFinesTotal)} fines`
+                          : ''}
                       </div>
                     </div>
                   </div>

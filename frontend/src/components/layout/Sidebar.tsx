@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import {
   BookmarkCheck,
   BookOpen,
+  KeyRound,
   LayoutDashboard,
   Lock,
   LogIn,
@@ -35,6 +36,7 @@ interface SidebarProps {
   health?: HealthResponse | null;
   healthError?: boolean;
   onRefreshHealth?: () => void;
+  onOpenChangePassword?: () => void;
 }
 
 interface NavEntry {
@@ -52,6 +54,7 @@ export function Sidebar({
   mobileOpen,
   onCloseMobile,
   counts,
+  onOpenChangePassword,
 }: SidebarProps) {
   const { user, isAuthenticated, isStaff, isAdmin, remainingSeconds, openSignInModal, logout } =
     useAuth();
@@ -230,10 +233,26 @@ export function Sidebar({
                     {formatRoleLabel(primaryRole)}
                   </StatusBadge>
                 </span>
-                <button type="button" className="sidebar-auth-link" onClick={logout}>
-                  <LogOut size={14} aria-hidden="true" />
-                  <span>Sign Out</span>
-                </button>
+                <div className="sidebar-footer-actions">
+                  {onOpenChangePassword ? (
+                    <button
+                      type="button"
+                      className="sidebar-auth-link"
+                      onClick={() => {
+                        onOpenChangePassword();
+                        onCloseMobile();
+                      }}
+                      title="Change password"
+                    >
+                      <KeyRound size={13} aria-hidden="true" />
+                      <span>Password</span>
+                    </button>
+                  ) : null}
+                  <button type="button" className="sidebar-auth-link" onClick={logout}>
+                    <LogOut size={14} aria-hidden="true" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
