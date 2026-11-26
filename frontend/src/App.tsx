@@ -111,10 +111,9 @@ function LibraryWorkspace() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState(false);
 
-  // Books catalog state
+  // Complete library data; BooksPage derives its own filtered catalog view.
   const [books, setBooks] = useState<Book[]>([]);
   const [bookSearch, setBookSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [booksError, setBooksError] = useState<string | null>(null);
 
@@ -185,14 +184,6 @@ function LibraryWorkspace() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [focusCatalogSearch]);
 
-  // Debounce catalog search input
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedSearch(bookSearch);
-    }, 240);
-    return () => window.clearTimeout(timer);
-  }, [bookSearch]);
-
   const fetchHealth = useCallback(async (signal?: AbortSignal) => {
     try {
       const status = await healthApi.getHealth(signal);
@@ -205,16 +196,13 @@ function LibraryWorkspace() {
     }
   }, []);
 
-  const isCatalogIdSearch = (value: string) => /^(cat-?\d*|#\d+|\d{1,6})$/i.test(value.trim());
-
   const fetchBooks = useCallback(
-    async (search = debouncedSearch, signal?: AbortSignal) => {
+    async (signal?: AbortSignal) => {
       setLoadingBooks(true);
       setBooksError(null);
       try {
-        const apiSearch = isCatalogIdSearch(search) ? '' : search;
-        const list = await booksApi.listBooks(apiSearch, signal);
-        setBooks(list);
+        const list = await booksApi.listBooks('', signal);
+        if (!signal?.aborted) setBooks(list);
       } catch (err) {
         if (!signal?.aborted) {
           setBooksError(formatApiErrorMessage(err));
@@ -225,7 +213,7 @@ function LibraryWorkspace() {
         }
       }
     },
-    [debouncedSearch],
+    [],
   );
 
   const fetchStaffData = useCallback(
@@ -322,12 +310,12 @@ function LibraryWorkspace() {
 
   const refreshAllCirculation = useCallback(async () => {
     await Promise.all([
-      fetchBooks(debouncedSearch),
+      fetchBooks(),
       fetchStaffData(),
       fetchBookshelf(),
       fetchNotifications(),
     ]);
-  }, [fetchBooks, debouncedSearch, fetchStaffData, fetchBookshelf, fetchNotifications]);
+  }, [fetchBooks, fetchStaffData, fetchBookshelf, fetchNotifications]);
 
   // Initial & polled health + notifications check
   useEffect(() => {
@@ -345,12 +333,12 @@ function LibraryWorkspace() {
     };
   }, [fetchHealth, fetchNotifications, isAuthenticated]);
 
-  // Fetch public catalog on mount / debounced search change
+  // Fetch the complete public library once; search stays local to the catalog.
   useEffect(() => {
     const controller = new AbortController();
-    void fetchBooks(debouncedSearch, controller.signal);
+    void fetchBooks(controller.signal);
     return () => controller.abort();
-  }, [debouncedSearch, fetchBooks]);
+  }, [fetchBooks]);
 
   // Fetch staff data whenever staff status changes
   useEffect(() => {
@@ -472,7 +460,7 @@ function LibraryWorkspace() {
       await booksApi.deleteBook(deletingBook.id);
       const removedTitle = deletingBook.title;
       setDeletingBook(null);
-      await fetchBooks(debouncedSearch);
+      await fetchBooks();
       notify({
         variant: 'success',
         title: 'Book deleted',
@@ -638,7 +626,7 @@ function LibraryWorkspace() {
               bookshelf={bookshelf}
               loadingBooks={loadingBooks}
               booksError={booksError}
-              onRetryBooks={() => void fetchBooks(debouncedSearch)}
+              onRetryBooks={() => void fetchBooks()}
               onNavigate={setActiveTab}
               onInspectBook={setInspectBookId}
               onOpenAddBook={handleOpenAddBook}
@@ -658,7 +646,7 @@ function LibraryWorkspace() {
               searchInputRef={booksSearchInputRef}
               loading={loadingBooks}
               errorMsg={booksError}
-              onRetry={() => void fetchBooks(debouncedSearch)}
+              onRetry={() => void fetchBooks()}
               onAddBook={handleOpenAddBook}
               onEditBook={handleOpenEditBook}
               onDeleteBook={setDeletingBook}

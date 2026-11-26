@@ -31,6 +31,20 @@ public class Member {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "app_user_id", unique = true)
+    private AppUser account;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public AppUser getAccount() { return account; }
+
+    public void linkAccount(AppUser account) {
+        if (this.account != null && !this.account.getId().equals(account.getId())) {
+            throw new IllegalStateException("Member is already linked to another account");
+        }
+        this.account = account;
+    }
+
     @Transient
     private int activeLoanCount;
 

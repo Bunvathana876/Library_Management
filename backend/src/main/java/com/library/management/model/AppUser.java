@@ -24,6 +24,17 @@ public class AppUser {
     @Column(nullable = false)
     private boolean enabled = true;
 
+    @Column(name = "token_version", nullable = false, length = 36)
+    private String tokenVersion = "0";
+
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private long rowVersion;
+
+    public String getTokenVersion() { return tokenVersion; }
+
+    private void revokeTokens() { tokenVersion = java.util.UUID.randomUUID().toString(); }
+
     protected AppUser() {}
 
     public AppUser(
@@ -40,6 +51,11 @@ public class AppUser {
 
     public String getEmail() { return email; }
 
+    public void changeEmail(String email) {
+        if (!this.email.equals(email)) revokeTokens();
+        this.email = email;
+    }
+
     public String getPasswordHash() { return passwordHash; }
 
     public UserRole getRole() { return role; }
@@ -47,14 +63,17 @@ public class AppUser {
     public boolean isEnabled() { return enabled; }
 
     public void setEnabled(boolean enabled) {
+        if (this.enabled != enabled) revokeTokens();
         this.enabled = enabled;
     }
 
     public void setRole(UserRole role) {
+        if (this.role != role) revokeTokens();
         this.role = role;
     }
 
     public void setPasswordHash(String passwordHash) {
+        revokeTokens();
         this.passwordHash = passwordHash;
     }
 }

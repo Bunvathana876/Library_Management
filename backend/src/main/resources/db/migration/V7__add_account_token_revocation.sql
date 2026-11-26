@@ -1,0 +1,3 @@
+ALTER TABLE app_users
+    ADD COLUMN token_version VARCHAR(36) NOT NULL DEFAULT '0',
+    ADD COLUMN row_version BIGINT NOT NULL DEFAULT 0;

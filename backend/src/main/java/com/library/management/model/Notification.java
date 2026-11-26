@@ -15,6 +15,9 @@ public class Notification {
     @Column(name = "recipient_email", nullable = false, length = 254)
     private String recipientEmail;
 
+    @Column(name = "recipient_member_id")
+    private Long recipientMemberId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private NotificationType type;

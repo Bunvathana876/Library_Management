@@ -46,12 +46,12 @@ public class MemberService {
     private final HoldRepository holdRepository;
     private final LoanService loanService;
     private final CirculationPolicyProperties policy;
+    private final com.library.management.repository.AppUserRepository users;
 
     public MemberService(MemberRepository memberRepository) {
         this(memberRepository, null, null, null, CirculationPolicyProperties.defaults());
     }
 
-    @Autowired
     public MemberService(
             MemberRepository memberRepository,
             LoanRepository loanRepository,
@@ -59,6 +59,14 @@ public class MemberService {
             LoanService loanService,
             CirculationPolicyProperties policy
     ) {
+        this(memberRepository, loanRepository, holdRepository, loanService, policy, null);
+    }
+
+    @Autowired
+    public MemberService(MemberRepository memberRepository, LoanRepository loanRepository,
+            HoldRepository holdRepository, LoanService loanService, CirculationPolicyProperties policy,
+            com.library.management.repository.AppUserRepository users) {
+        this.users = users;
         this.memberRepository = memberRepository;
         this.loanRepository = loanRepository;
         this.holdRepository = holdRepository;
@@ -189,6 +197,18 @@ public class MemberService {
             throw new BusinessRuleException("Another member is already registered with this email");
         }
 
+        var account = member.getAccount();
+        if (!member.getEmail().equals(email)) {
+            if (account != null && account.getRole() != com.library.management.model.UserRole.MEMBER) {
+                throw new BusinessRuleException("Staff account emails cannot be changed through member profiles");
+            }
+            var accountConflict = users != null ? users.findByEmail(email).orElse(null) : null;
+            if (accountConflict != null && (account == null || !accountConflict.getId().equals(account.getId()))) {
+                throw new BusinessRuleException("Another account is already registered with this email");
+            }
+            if (account != null) account.changeEmail(email);
+        }
+
         member.updateProfile(
             request.fullName().trim(),
             email,
@@ -221,6 +241,10 @@ public class MemberService {
         Member member = memberRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Member", id));
 
+        if (member.getAccount() != null) {
+            throw new BusinessRuleException("Members linked to login accounts cannot be deleted; deactivate instead");
+        }
+
         if (loanRepository != null && loanRepository.existsByMemberId(id)) {
             throw new BusinessRuleException(
                 "Members with loan history cannot be deleted; deactivate the member instead"
@@ -248,12 +272,16 @@ public class MemberService {
     @Transactional
     public Member ensureMemberForEmail(String rawEmail, String optionalFullName) {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
-        Optional<Member> existing = memberRepository.findByEmailIgnoreCase(email);
-        if (existing.isPresent()) {
-            return existing.get();
+        // Lock the account first so concurrent first-time profile requests cannot create duplicates.
+        var account = users != null ? users.findByEmailForUpdate(email).orElse(null) : null;
+        if (account != null) {
+            Optional<Member> linked = memberRepository.findByAccountId(account.getId());
+            if (linked.isPresent()) return linked.get();
         }
-        String resolvedName = resolveDisplayName(optionalFullName, email);
-        return memberRepository.save(new Member(resolvedName, email));
+        Optional<Member> existing = memberRepository.findByEmailIgnoreCase(email);
+        Member member = existing.orElseGet(() -> new Member(resolveDisplayName(optionalFullName, email), email));
+        if (account != null) member.linkAccount(account);
+        return memberRepository.save(member);
     }
 
     private void enrichMembers(List<Member> members) {

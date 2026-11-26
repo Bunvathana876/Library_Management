@@ -340,4 +340,68 @@ class LoanServiceTest {
         assertEquals(FineStatus.PAID, paid.fineStatus());
         assertEquals("Cash receipt", paid.fineNote());
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"-1,false", "0,false", "1,false", "-1,true", "0,true", "1,true"})
+    void renewalDateBoundaryPreservesOverdueHistory(int daysAfterDue, boolean selfService) {
+        LocalDate due = LocalDate.of(2030, 6, 15);
+        LocalDate today = due.plusDays(daysAfterDue);
+        java.time.Clock clock = java.time.Clock.fixed(today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC);
+        LoanService service = new LoanService(bookRepository, memberRepository, loanRepository,
+            holdRepository, null, null, CirculationPolicyProperties.defaults(), clock);
+        Book book = new Book("Date boundaries", "Author", 2020);
+        ReflectionTestUtils.setField(book, "id", 1L);
+        Member member = new Member("Reader", "reader@example.com");
+        Loan loan = new Loan(book, member, due.minusDays(14), due);
+        when(loanRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(loan));
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        Runnable renew = () -> {
+            if (selfService) service.renewOwnLoan(1L, member.getEmail());
+            else service.renewLoan(1L);
+        };
+        if (daysAfterDue > 0) {
+            assertEquals("Overdue loans cannot be renewed", assertThrows(BusinessRuleException.class, renew::run).getMessage());
+            assertEquals(due, loan.getDueOn());
+            assertEquals(0, loan.getRenewalCount());
+            assertNull(loan.getLastRenewedOn());
+            assertEquals(new BigDecimal("0.50"), service.calculateAccruedFine(loan, today));
+            LoanResponse response = LoanResponse.from(loan, false, null, new BigDecimal("0.50"), false, today);
+            assertFalse(response.renewable());
+            assertEquals("Overdue loans cannot be renewed", response.renewDisabledReason());
+            verify(loanRepository, never()).save(any());
+        } else {
+            when(loanRepository.save(any(Loan.class))).thenAnswer(inv -> inv.getArgument(0));
+            renew.run();
+            assertEquals(due.plusDays(14), loan.getDueOn());
+            assertEquals(today, loan.getLastRenewedOn());
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void fineBlockedMemberCannotRenewThroughEitherEndpoint(boolean selfService) {
+        LocalDate today = LocalDate.of(2030, 6, 15);
+        LoanService service = new LoanService(bookRepository, memberRepository, loanRepository,
+            holdRepository, null, null, CirculationPolicyProperties.defaults(),
+            java.time.Clock.fixed(today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
+        Book book = new Book("Fines", "Author", 2020);
+        ReflectionTestUtils.setField(book, "id", 1L);
+        Member member = new Member("Reader", "reader@example.com");
+        ReflectionTestUtils.setField(member, "id", 2L);
+        Loan loan = new Loan(book, member, today, today.plusDays(14));
+        Loan unpaid = new Loan(book, member, today.minusDays(60), today.minusDays(46));
+        unpaid.markReturned(today.minusDays(20));
+        unpaid.assessFine(new BigDecimal("13.00"));
+        when(loanRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(loan));
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(loanRepository.findAllByMemberIdAndFineStatus(2L, FineStatus.UNPAID)).thenReturn(List.of(unpaid));
+        BusinessRuleException failure = assertThrows(BusinessRuleException.class, () -> {
+            if (selfService) service.renewOwnLoan(1L, member.getEmail());
+            else service.renewLoan(1L);
+        });
+        assertEquals("Blocked by unpaid overdue fines", failure.getMessage());
+        assertFalse(LoanResponse.from(loan, false, null, BigDecimal.ONE, true, today).renewable());
+        assertEquals(new BigDecimal("13.00"), unpaid.getFineAmount());
+        verify(loanRepository, never()).save(any());
+    }
 }

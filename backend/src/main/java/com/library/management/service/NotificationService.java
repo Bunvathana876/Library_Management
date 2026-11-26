@@ -16,6 +16,8 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -156,26 +158,41 @@ public class NotificationService {
         if (email.isBlank()) {
             return false;
         }
-        if (referenceKey != null
-                && notificationRepository.existsByRecipientEmailIgnoreCaseAndReferenceKey(email, referenceKey)) {
-            return false;
-        }
-        notificationRepository.save(new Notification(email, type, title, message, referenceKey));
-        if (sendEmail) {
-            sendEmailSafely(email, title, message);
+        String safeTitle = truncate(title, 160);
+        String safeMessage = truncate(message, 500);
+        int inserted = notificationRepository.insertIfAbsent(email, type.name(), safeTitle, safeMessage, referenceKey);
+        if (inserted == 0) return false;
+        if (sendEmail && emailEnabled) {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        sendEmailSafely(email, safeTitle, safeMessage);
+                    }
+                });
+            } else {
+                sendEmailSafely(email, safeTitle, safeMessage);
+            }
         }
         return true;
+    }
+
+    // PostgreSQL varchar limits count Unicode code points, not UTF-16 code units.
+    static String truncate(String text, int limit) {
+        if (text.codePointCount(0, text.length()) <= limit) return text;
+        return text.substring(0, text.offsetByCodePoints(0, limit - 1)) + "…";
     }
 
     private void sendEmailSafely(String to, String subject, String body) {
         if (!emailEnabled) {
             return;
         }
-        JavaMailSender sender = mailSenderProvider.getIfAvailable();
-        if (sender == null) {
-            return;
-        }
         try {
+            JavaMailSender sender = mailSenderProvider.getIfAvailable();
+            if (sender == null) {
+                log.warn("Notification email enabled but no mail sender is configured; in-app notification retained");
+                return;
+            }
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromAddress);
             msg.setTo(to);

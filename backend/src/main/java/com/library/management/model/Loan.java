@@ -117,12 +117,25 @@ public class Loan {
         }
     }
 
+    public String renewalDisabledReason(LocalDate today, boolean hasActiveHold, boolean fineBlocked) {
+        if (returnedOn != null) return "Already returned";
+        if (dueOn.isBefore(today)) return "Overdue loans cannot be renewed";
+        if (!member.isActive()) return "Deactivated member accounts cannot renew loans";
+        if (fineBlocked) return "Blocked by unpaid overdue fines";
+        if (renewalCount >= MAX_RENEWALS) return "Maximum 2 renewals reached";
+        if (hasActiveHold) return "Blocked by an active hold";
+        return null;
+    }
+
     public void renew(LocalDate today) {
-        LocalDate reference = today != null ? today : LocalDate.now();
-        LocalDate baseDate = (this.dueOn != null && this.dueOn.isAfter(reference)) ? this.dueOn : reference;
-        this.dueOn = baseDate.plusDays(RENEWAL_EXTENSION_DAYS);
+        java.util.Objects.requireNonNull(today, "Renewal date is required");
+        String reason = renewalDisabledReason(today, false, false);
+        if (reason != null) {
+            throw new com.library.management.exception.BusinessRuleException(reason);
+        }
+        this.dueOn = this.dueOn.plusDays(RENEWAL_EXTENSION_DAYS);
         this.renewalCount += 1;
-        this.lastRenewedOn = reference;
+        this.lastRenewedOn = today;
     }
 
     public Long getId() {

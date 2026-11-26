@@ -419,36 +419,6 @@ export function BooksPage({
           </div>
 
           <div className="catalog-select-wrap">
-            <label htmlFor={categorySelectId} className="visually-hidden">
-              Filter by category
-            </label>
-            <select
-              id={categorySelectId}
-              name="catalog-category"
-              className="catalog-select catalog-select-category"
-              value={selectedCategory}
-              onChange={(e) => {
-                const next = e.target.value;
-                setSelectedCategory(next);
-                setCurrentPage(1);
-                setStatusAnnouncement(
-                  next === 'all'
-                    ? 'Showing all categories.'
-                    : `Filtered catalog category to ${next}.`,
-                );
-              }}
-            >
-              <option value="all">All Categories</option>
-              {availableCategories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
-          </div>
-
-          <div className="catalog-select-wrap">
             <label htmlFor={sortSelectId} className="visually-hidden">
               Sort catalog books
             </label>

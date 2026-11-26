@@ -40,7 +40,8 @@ public class JwtConfig {
     @Bean
     public JwtDecoder jwtDecoder(
             SecretKey key,
-            @Value("${app.jwt.issuer}") String issuer
+            @Value("${app.jwt.issuer}") String issuer,
+            com.library.management.repository.AppUserRepository users
     ) {
         NimbusJwtDecoder decoder =
             NimbusJwtDecoder.withSecretKey(key)
@@ -48,7 +49,19 @@ public class JwtConfig {
                 .build();
 
         decoder.setJwtValidator(
-            JwtValidators.createDefaultWithIssuer(issuer)
+            new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuer),
+                jwt -> {
+                    var user = users.findByEmail(jwt.getSubject()).orElse(null);
+                    if (user != null && user.isEnabled()
+                            && user.getTokenVersion().equals(jwt.getClaimAsString("token_version"))
+                            && java.util.List.of(user.getRole().name()).equals(jwt.getClaimAsStringList("roles"))) {
+                        return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.success();
+                    }
+                    return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.failure(
+                        new org.springframework.security.oauth2.core.OAuth2Error("invalid_token", "Account session has been revoked", null));
+                }
+            )
         );
 
         return decoder;
