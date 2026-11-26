@@ -223,7 +223,7 @@ public class MemberService {
 
     @Transactional
     public Member updateMemberStatus(Long id, boolean active) {
-        Member member = memberRepository.findById(id)
+        Member member = memberRepository.findByIdForUpdate(id)
             .orElseThrow(() -> new ResourceNotFoundException("Member", id));
 
         if (!active && loanRepository != null && loanRepository.countByMemberIdAndReturnedOnIsNull(id) > 0) {
@@ -238,7 +238,7 @@ public class MemberService {
 
     @Transactional
     public void deleteMember(Long id) {
-        Member member = memberRepository.findById(id)
+        Member member = memberRepository.findByIdForUpdate(id)
             .orElseThrow(() -> new ResourceNotFoundException("Member", id));
 
         if (member.getAccount() != null) {

@@ -144,7 +144,7 @@ public class BookService {
 
     @Transactional
     public Book updateBook(Long id, BookRequest request) {
-        Book book = bookRepository.findById(id)
+        Book book = bookRepository.findByIdForUpdate(id)
             .orElseThrow(() -> new BookNotFoundException(id));
 
         String title = request.title().strip();
@@ -173,7 +173,7 @@ public class BookService {
 
     @Transactional
     public void deleteBook(Long id) {
-        Book book = bookRepository.findById(id)
+        Book book = bookRepository.findByIdForUpdate(id)
             .orElseThrow(() -> new BookNotFoundException(id));
         bookRepository.delete(book);
     }
@@ -230,7 +230,7 @@ public class BookService {
         Book book = bookRepository.findByIdForUpdate(bookId)
             .orElseThrow(() -> new BookNotFoundException(bookId));
 
-        BookCopy copy = bookCopyRepository.findByIdForUpdate(copyId)
+        BookCopy copy = bookCopyRepository.findByIdAndBookIdForUpdate(copyId, bookId)
             .orElseThrow(() -> new ResourceNotFoundException("Book copy", copyId));
 
         if (!copy.getBook().getId().equals(bookId)) {
@@ -265,7 +265,7 @@ public class BookService {
         Book book = bookRepository.findByIdForUpdate(bookId)
             .orElseThrow(() -> new BookNotFoundException(bookId));
 
-        BookCopy copy = bookCopyRepository.findByIdForUpdate(copyId)
+        BookCopy copy = bookCopyRepository.findByIdAndBookIdForUpdate(copyId, bookId)
             .orElseThrow(() -> new ResourceNotFoundException("Book copy", copyId));
 
         if (!copy.getBook().getId().equals(bookId)) {

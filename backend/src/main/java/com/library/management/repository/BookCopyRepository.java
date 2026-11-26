@@ -27,6 +27,10 @@ public interface BookCopyRepository extends JpaRepository<BookCopy, Long> {
     List<BookCopy> findByBookIdIn(Collection<Long> bookIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT bc FROM BookCopy bc WHERE bc.id = :id AND bc.book.id = :bookId")
+    Optional<BookCopy> findByIdAndBookIdForUpdate(@Param("id") Long id, @Param("bookId") Long bookId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT bc FROM BookCopy bc WHERE bc.id = :id")
     Optional<BookCopy> findByIdForUpdate(@Param("id") Long id);
 

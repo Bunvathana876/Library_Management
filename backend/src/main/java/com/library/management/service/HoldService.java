@@ -109,12 +109,6 @@ public class HoldService {
             String actorEmail,
             boolean isStaff
     ) {
-        expireStaleReadyHoldsInternal();
-
-        Book book = bookRepository
-            .findByIdForUpdate(bookId)
-            .orElseThrow(() -> new BookNotFoundException(bookId));
-
         Member member;
         if (isStaff && requestedMemberId != null) {
             member = memberRepository
@@ -123,6 +117,12 @@ public class HoldService {
         } else {
             member = memberService.ensureMemberForEmail(actorEmail, null);
         }
+
+        Book book = bookRepository
+            .findByIdForUpdate(bookId)
+            .orElseThrow(() -> new BookNotFoundException(bookId));
+
+        expireReadyHoldsForBook(book, LocalDate.now(), Instant.now());
 
         if (!member.isActive()) {
             throw new BusinessRuleException("Deactivated member accounts cannot place holds");
@@ -170,8 +170,7 @@ public class HoldService {
 
     @Transactional
     public HoldResponse cancelHold(Long holdId, String actorEmail, boolean isStaff) {
-        expireStaleReadyHoldsInternal();
-
+        lockHoldBook(holdId);
         Hold hold = holdRepository
             .findByIdForUpdate(holdId)
             .orElseThrow(() -> new ResourceNotFoundException("Hold", holdId));
@@ -205,10 +204,9 @@ public class HoldService {
 
     @Transactional
     public LoanResponse fulfillReadyHold(Long holdId) {
-        expireStaleReadyHoldsInternal();
-
+        lockHoldBook(holdId);
         Hold hold = holdRepository
-            .findByIdForUpdate(holdId)
+            .findById(holdId)
             .orElseThrow(() -> new ResourceNotFoundException("Hold", holdId));
 
         if (hold.getStatus() != HoldStatus.READY_FOR_PICKUP) {
@@ -224,7 +222,6 @@ public class HoldService {
     @Transactional
     public List<HoldResponse> getActiveHoldsForDesk() {
         expireStaleReadyHoldsInternal();
-
         List<Hold> active = holdRepository.findAllByStatusInOrderByPlacedAtAscIdAsc(ACTIVE_STATUSES);
         Map<Long, Integer> queueCounters = new HashMap<>();
         Map<Long, Integer> positionByHoldId = new HashMap<>();
@@ -253,13 +250,12 @@ public class HoldService {
 
     @Transactional
     public MemberBookshelfResponse getBookshelf(String userEmail, boolean autoProvisionMember) {
-        expireStaleReadyHoldsInternal();
-
         Member member = autoProvisionMember
             ? memberService.ensureMemberForEmail(userEmail, null)
             : memberService.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("No member profile found for " + userEmail));
 
+        expireStaleReadyHoldsInternal();
         LocalDate today = LocalDate.now();
         List<Loan> activeLoanEntities = loanRepository.findAllByMemberIdAndReturnedOnIsNullOrderByDueOnAsc(member.getId());
         List<Loan> returnedEntities = loanRepository.findAllByMemberIdAndReturnedOnIsNotNullOrderByReturnedOnDescIdDesc(member.getId());
@@ -345,28 +341,39 @@ public class HoldService {
     private int expireStaleReadyHoldsInternal() {
         LocalDate today = LocalDate.now();
         Instant now = Instant.now();
-        List<Hold> expiredHolds = holdRepository.findAllByStatusAndExpiresOnBefore(
-            HoldStatus.READY_FOR_PICKUP,
-            today
-        );
-        if (expiredHolds.isEmpty()) {
-            return 0;
-        }
+        // Scalar IDs avoid putting stale Hold entities into the persistence context before waiting.
+        // Multiple books are always locked in ascending order; ordinary operations touch one book.
+        List<Long> bookIds = holdRepository.findExpiredBookIds(HoldStatus.READY_FOR_PICKUP, today);
         int count = 0;
-        for (Hold hold : expiredHolds) {
-            Book book = bookRepository.findByIdForUpdate(hold.getBook().getId()).orElse(null);
+        for (Long bookId : bookIds) {
+            Book book = bookRepository.findByIdForUpdate(bookId).orElse(null);
+            if (book == null) continue;
+            count += expireReadyHoldsForBook(book, today, now);
+        }
+        return count;
+    }
+
+    private int expireReadyHoldsForBook(Book book, LocalDate today, Instant now) {
+        int count = 0;
+        for (Hold hold : holdRepository.findAllByBookIdAndStatusOrderByPlacedAtAscIdAsc(
+                book.getId(), HoldStatus.READY_FOR_PICKUP)) {
+            if (hold.getExpiresOn() == null || !hold.getExpiresOn().isBefore(today)) continue;
             BookCopy releasedCopy = hold.getCopy();
             hold.markExpired();
             holdRepository.save(hold);
-            if (notificationService != null) {
-                notificationService.notifyHoldExpired(hold);
-            }
+            if (notificationService != null) notificationService.notifyHoldExpired(hold);
             count++;
-            if (book != null) {
-                promoteNextWaitingOrReleaseCopy(book, releasedCopy, today, now);
-            }
+            promoteNextWaitingOrReleaseCopy(book, releasedCopy, today, now);
         }
         return count;
+    }
+
+    private void lockHoldBook(Long holdId) {
+        Long bookId = holdRepository.findBookIdById(holdId)
+            .orElseThrow(() -> new ResourceNotFoundException("Hold", holdId));
+        Book book = bookRepository.findByIdForUpdate(bookId)
+            .orElseThrow(() -> new BookNotFoundException(bookId));
+        expireReadyHoldsForBook(book, LocalDate.now(), Instant.now());
     }
 
     private void promoteNextWaitingOrReleaseCopy(Book book, BookCopy releasedCopy, LocalDate today, Instant now) {

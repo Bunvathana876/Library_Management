@@ -46,6 +46,9 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
 
     void deleteAllByMemberId(Long memberId);
 
+    @Query("SELECT l.book.id FROM Loan l WHERE l.id = :id")
+    Optional<Long> findBookIdById(@Param("id") Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM Loan l WHERE l.id = :id")
     Optional<Loan> findByIdForUpdate(@Param("id") Long id);

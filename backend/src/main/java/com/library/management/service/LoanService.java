@@ -115,14 +115,16 @@ public class LoanService {
         this.policy = policy != null ? policy : CirculationPolicyProperties.defaults();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public LoanResponse borrow(BorrowRequest request) {
+        // Global circulation order: Book -> Member -> Loan/Hold -> Copy.
+        // PostgreSQL READ COMMITTED sees the preceding checkout after the member lock waits.
         Book book = bookRepository
             .findByIdForUpdate(request.bookId())
             .orElseThrow(() -> new BookNotFoundException(request.bookId()));
 
         Member member = memberRepository
-            .findById(request.memberId())
+            .findByIdForUpdate(request.memberId())
             .orElseThrow(() -> new ResourceNotFoundException("Member", request.memberId()));
 
         if (!member.isActive()) {
@@ -184,7 +186,7 @@ public class LoanService {
         } else if (!allCopies.isEmpty()) {
             if (request.copyId() != null) {
                 BookCopy requested = bookCopyRepository
-                    .findByIdForUpdate(request.copyId())
+                    .findByIdAndBookIdForUpdate(request.copyId(), book.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Book copy", request.copyId()));
                 if (!requested.getBook().getId().equals(book.getId())) {
                     throw new BusinessRuleException("Selected copy does not belong to this book title");
@@ -248,6 +250,7 @@ public class LoanService {
 
     @Transactional
     public LoanResponse returnBook(Long loanId) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -334,6 +337,7 @@ public class LoanService {
 
     @Transactional
     public LoanResponse renewLoan(Long loanId) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -343,6 +347,7 @@ public class LoanService {
 
     @Transactional
     public LoanResponse renewOwnLoan(Long loanId, String memberEmail) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -356,6 +361,13 @@ public class LoanService {
         }
 
         return performRenewal(loan);
+    }
+
+    private void lockLoanBook(Long loanId) {
+        Long bookId = loanRepository.findBookIdById(loanId)
+            .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
+        bookRepository.findByIdForUpdate(bookId)
+            .orElseThrow(() -> new BookNotFoundException(bookId));
     }
 
     private LoanResponse performRenewal(Loan loan) {
@@ -454,6 +466,7 @@ public class LoanService {
     }
 
     private LoanResponse settleFine(Long loanId, boolean paid, String note) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));

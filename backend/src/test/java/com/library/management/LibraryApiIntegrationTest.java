@@ -426,6 +426,12 @@ class LibraryApiIntegrationTest extends PostgresIntegrationTest {
             LocalDate.now().minusDays(6)
         ));
 
+        // Desk HTTP renewal must preserve the overdue due date and fine basis.
+        mvc.perform(post("/api/loans/" + backdated.getId() + "/renew")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken))
+            .andExpect(status().isConflict());
+        assertEquals(backdated.getDueOn(), loanRepository.findById(backdated.getId()).orElseThrow().getDueOn());
+
         mvc.perform(post("/api/admin/jobs/run-reminders")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
             .andExpect(status().isOk())
