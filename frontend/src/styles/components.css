@@ -50,7 +50,9 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.25;
-  white-space: nowrap;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-out),
@@ -272,6 +274,7 @@
 
 .field-label-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
@@ -527,7 +530,7 @@ dialog.modal-dialog {
   max-height: min(88dvh, 760px);
   margin: auto;
   padding: 0;
-  overflow: hidden;
+  overflow-y: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--modal-radius);
   background: var(--modal-bg);
@@ -554,9 +557,9 @@ dialog.modal-dialog[open] {
 dialog.modal-dialog > form {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: none;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   gap: 0;
 }
 
@@ -637,8 +640,8 @@ dialog.modal-dialog[open]:where(:not([data-closing]))::backdrop {
 
 .modal-body {
   padding: var(--space-5) var(--space-6);
-  overflow-y: auto;
-  flex: 1 1 auto;
+  overflow: visible;
+  flex: none;
 }
 
 .modal-footer {
@@ -2833,6 +2836,11 @@ progress.loading-spinner:indeterminate {
   gap: var(--space-2);
 }
 
+.scanner-manual-form > .field {
+  min-width: 0;
+  width: 100%;
+}
+
 .scanner-match-card {
   display: flex;
   flex-wrap: wrap;
@@ -2967,7 +2975,9 @@ progress.loading-spinner:indeterminate {
   box-shadow: var(--shadow-lg);
   inline-size: min(380px, calc(100vw - 1.5rem));
   max-inline-size: calc(100vw - 1.5rem);
-  overflow: hidden;
+  max-block-size: calc(100dvh - var(--topbar-height) - var(--space-4));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   opacity: 0;
   transform: translateY(4px);
   transition:
@@ -2984,6 +2994,7 @@ progress.loading-spinner:indeterminate {
     margin: 0;
     margin-block-start: 8px;
     position-area: block-end span-inline-start;
+    max-block-size: min(520px, calc(100% - var(--space-4)));
     position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
   }
 }
@@ -3015,6 +3026,8 @@ progress.loading-spinner:indeterminate {
 
 .notif-popover-header {
   display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -3191,7 +3204,7 @@ progress.loading-spinner:indeterminate {
   height: 100dvh;
   max-height: 100dvh;
   box-shadow: var(--shadow-lg);
-  overflow: hidden;
+  overflow-y: auto;
   flex-direction: column;
 }
 
@@ -3216,8 +3229,8 @@ progress.loading-spinner:indeterminate {
 
 .drawer-body {
   padding: var(--space-5) var(--space-6);
-  overflow-y: auto;
-  flex: 1 1 auto;
+  overflow: visible;
+  flex: none;
 }
 
 .drawer-standing-card {
@@ -3264,5 +3277,103 @@ progress.loading-spinner:indeterminate {
 
   .policy-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive content stays inside cards; long action labels remain readable. */
+.quick-op-btn {
+  white-space: normal;
+  text-align: start;
+}
+
+.quick-op-label,
+.donut-legend,
+.legend-label,
+.modal-header > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.modal-header,
+.modal-footer {
+  flex-shrink: 0;
+}
+
+.modal-body {
+  overflow-wrap: anywhere;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (max-width: 479px) {
+  .modal-header,
+  .modal-body,
+  .modal-footer,
+  .scanner-modal-body {
+    padding-inline: var(--space-4);
+  }
+
+  .modal-footer > .btn {
+    flex: 1 1 auto;
+    white-space: normal;
+  }
+}
+
+/* A landscape phone or on-screen keyboard must not leave the form body unreachable. */
+@media (max-height: 480px) {
+  dialog.modal-dialog {
+    max-height: calc(100dvh - var(--space-4));
+  }
+}
+
+/* Library metadata can be long or contain no spaces; never let it widen the page. */
+.queue-row-main,
+.catalog-card-heading,
+.bookshelf-identity,
+.book-detail-author,
+.drawer-header > div,
+.drawer-meta-notes,
+.scanner-match-card,
+.scanner-selected-chip {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.queue-row-title {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.catalog-card-top .badge,
+.book-detail-summary .badge {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.drawer-header {
+  flex-shrink: 0;
+}
+
+.drawer-body {
+  min-height: 0;
+  overflow-wrap: anywhere;
+}
+
+.book-detail-summary > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .book-detail-header-card {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .book-detail-summary {
+    flex: 1 1 100%;
+    order: 1;
   }
 }
