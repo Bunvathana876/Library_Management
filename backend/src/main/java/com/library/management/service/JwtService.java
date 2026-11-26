@@ -16,6 +16,7 @@ import java.util.List;
 @Service
 public class JwtService {
 
+    private final com.library.management.repository.AppUserRepository users;
     private final JwtEncoder encoder;
     private final String issuer;
     private final long tokenMinutes;
@@ -24,8 +25,10 @@ public class JwtService {
             JwtEncoder encoder,
             @Value("${app.jwt.issuer}") String issuer,
             @Value("${app.jwt.access-token-minutes:30}")
-            long tokenMinutes
+            long tokenMinutes,
+            com.library.management.repository.AppUserRepository users
     ) {
+        this.users = users;
         this.encoder = encoder;
         this.issuer = issuer;
         this.tokenMinutes = tokenMinutes;
@@ -35,12 +38,10 @@ public class JwtService {
 
         Instant now = Instant.now();
 
-        List<String> roles = authentication.getAuthorities()
-            .stream()
-            .map(GrantedAuthority::getAuthority)
-            .filter(authority -> authority != null && authority.startsWith("ROLE_"))
-            .map(role -> role.substring("ROLE_".length()))
-            .toList();
+        var user = users.findByEmail(authentication.getName())
+            .filter(com.library.management.model.AppUser::isEnabled)
+            .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Account unavailable"));
+        List<String> roles = List.of(user.getRole().name());
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
             .issuer(issuer)
@@ -48,6 +49,7 @@ public class JwtService {
             .issuedAt(now)
             .expiresAt(now.plus(tokenMinutes, ChronoUnit.MINUTES))
             .claim("roles", roles)
+            .claim("token_version", user.getTokenVersion())
             .build();
 
         JwsHeader header = JwsHeader

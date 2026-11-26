@@ -18,6 +18,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class JwtServiceTest {
 
+    private com.library.management.repository.AppUserRepository testUsers() {
+        var users = org.mockito.Mockito.mock(com.library.management.repository.AppUserRepository.class);
+        org.mockito.Mockito.when(users.findByEmail("admin@library.local")).thenReturn(java.util.Optional.of(
+            new com.library.management.model.AppUser("admin@library.local", "test-hash", com.library.management.model.UserRole.ADMIN)));
+        return users;
+    }
+
     @Test
     void shouldGenerateValidAdminToken() {
 
@@ -33,7 +40,7 @@ class JwtServiceTest {
                 .build();
 
         JwtService service =
-            new JwtService(encoder, "library-management", 30);
+            new JwtService(encoder, "library-management", 30, testUsers());
 
         var authentication =
             new UsernamePasswordAuthenticationToken(
@@ -87,7 +94,7 @@ class JwtServiceTest {
                 .build();
 
         JwtService service =
-            new JwtService(encoder, "library-management", 30);
+            new JwtService(encoder, "library-management", 30, testUsers());
 
         var authentication =
             new UsernamePasswordAuthenticationToken(

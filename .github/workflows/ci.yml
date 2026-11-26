@@ -2,9 +2,11 @@ name: Library Management CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
   pull_request:
-    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   backend-test:
@@ -50,3 +52,17 @@ jobs:
           npm run typecheck
           npm test
           npm run build
+
+  compose-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate local and isolated staging configurations
+        env:
+          LIBRARY_DB_PASSWORD: validation-only
+          LIBRARY_JWT_SECRET_BASE64: validation-only
+          LIBRARY_ADMIN_EMAIL: validation@example.invalid
+          LIBRARY_ADMIN_PASSWORD: validation-only
+        run: |
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.staging.yaml config --quiet

@@ -13,6 +13,10 @@ public interface AppUserRepository
 
     Optional<AppUser> findByEmail(String email);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select u from AppUser u where lower(u.email) = lower(:email)")
+    Optional<AppUser> findByEmailForUpdate(@org.springframework.data.repository.query.Param("email") String email);
+
     boolean existsByEmail(String email);
 
     boolean existsByRole(UserRole role);

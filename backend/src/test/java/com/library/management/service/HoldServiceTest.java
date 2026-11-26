@@ -67,8 +67,6 @@ class HoldServiceTest {
         Hold existingFirst = new Hold(book, new Member("First", "first@example.com"), Instant.now().minusSeconds(60));
         ReflectionTestUtils.setField(existingFirst, "id", 10L);
 
-        when(holdRepository.findAllByStatusAndExpiresOnBefore(eq(HoldStatus.READY_FOR_PICKUP), any()))
-            .thenReturn(List.of());
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
         when(memberService.ensureMemberForEmail("bob@example.com", null)).thenReturn(member);
         when(holdRepository.existsByBookIdAndStatusIn(eq(1L), anyCollection())).thenReturn(false);
@@ -79,6 +77,7 @@ class HoldServiceTest {
             ReflectionTestUtils.setField(h, "id", 11L);
             return h;
         });
+        when(holdRepository.findAllByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.READY_FOR_PICKUP)).thenReturn(List.of());
         when(holdRepository.findAllByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.WAITING))
             .thenReturn(List.of(existingFirst, new Hold(book, member, Instant.now()) {{
                 ReflectionTestUtils.setField(this, "id", 11L);
@@ -98,8 +97,6 @@ class HoldServiceTest {
         Member member = new Member("Bob Reader", "bob@example.com");
         ReflectionTestUtils.setField(member, "id", 2L);
 
-        when(holdRepository.findAllByStatusAndExpiresOnBefore(eq(HoldStatus.READY_FOR_PICKUP), any()))
-            .thenReturn(List.of());
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
         when(memberService.ensureMemberForEmail("bob@example.com", null)).thenReturn(member);
         when(holdRepository.existsByBookIdAndStatusIn(eq(1L), anyCollection())).thenReturn(false);
@@ -128,8 +125,7 @@ class HoldServiceTest {
         Hold nextWaiting = new Hold(book, holder2, Instant.now().minusSeconds(60));
         ReflectionTestUtils.setField(nextWaiting, "id", 21L);
 
-        when(holdRepository.findAllByStatusAndExpiresOnBefore(eq(HoldStatus.READY_FOR_PICKUP), any()))
-            .thenReturn(List.of());
+        when(holdRepository.findBookIdById(20L)).thenReturn(Optional.of(1L));
         when(holdRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(readyHold));
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
         when(holdRepository.save(any(Hold.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -143,6 +139,7 @@ class HoldServiceTest {
         assertFalse(book.isAvailable());
 
         // Now cancel the second ready hold with empty queue -> book returns to available shelf
+        when(holdRepository.findBookIdById(21L)).thenReturn(Optional.of(1L));
         when(holdRepository.findByIdForUpdate(21L)).thenReturn(Optional.of(nextWaiting));
         when(holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.WAITING))
             .thenReturn(Optional.empty());
@@ -159,8 +156,8 @@ class HoldServiceTest {
         Member holder = new Member("Alice", "alice@example.com");
         Hold hold = new Hold(book, holder, Instant.now());
 
-        when(holdRepository.findAllByStatusAndExpiresOnBefore(eq(HoldStatus.READY_FOR_PICKUP), any()))
-            .thenReturn(List.of());
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(holdRepository.findBookIdById(99L)).thenReturn(Optional.of(1L));
         when(holdRepository.findByIdForUpdate(99L)).thenReturn(Optional.of(hold));
 
         assertThrows(
@@ -179,9 +176,9 @@ class HoldServiceTest {
         ReflectionTestUtils.setField(ready, "id", 50L);
         ready.markReadyForPickup(Instant.now(), LocalDate.now().plusDays(3));
 
-        when(holdRepository.findAllByStatusAndExpiresOnBefore(eq(HoldStatus.READY_FOR_PICKUP), any()))
-            .thenReturn(List.of());
-        when(holdRepository.findByIdForUpdate(50L)).thenReturn(Optional.of(ready));
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(holdRepository.findBookIdById(50L)).thenReturn(Optional.of(1L));
+        when(holdRepository.findById(50L)).thenReturn(Optional.of(ready));
         LoanResponse expected = mock(LoanResponse.class);
         when(loanService.borrow(new BorrowRequest(1L, 2L))).thenReturn(expected);
 

@@ -10,12 +10,10 @@ import com.library.management.repository.MemberRepository;
 import com.library.management.service.JwtService;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,21 +21,13 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.Base64;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,33 +36,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
-@ActiveProfiles("test")
-class LibraryApiIntegrationTest {
+class LibraryApiIntegrationTest extends PostgresIntegrationTest {
 
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres =
-        new PostgreSQLContainer("postgres:17-alpine");
+    @Autowired
+    com.library.management.repository.AppUserRepository users;
 
-    @DynamicPropertySource
-    static void testProperties(DynamicPropertyRegistry registry) {
-
-        // Fixed key is for isolated tests ONLY.
-        String testSecret = Base64.getEncoder().encodeToString(
-            "0123456789abcdef0123456789abcdef"
-                .getBytes(StandardCharsets.UTF_8)
-        );
-
-        registry.add(
-            "app.jwt.secret-base64",
-            () -> testSecret
-        );
-
-        registry.add(
-            "spring.datasource.password",
-            () -> "test-only-password"
-        );
+    @org.junit.jupiter.api.BeforeEach
+    void createTokenAccounts() {
+        if (!users.existsByEmail("admin2@test.local")) users.save(new com.library.management.model.AppUser("admin2@test.local", "unused-test-hash", com.library.management.model.UserRole.ADMIN));
+        if (!users.existsByEmail("admin@test.local")) users.save(new com.library.management.model.AppUser("admin@test.local", "unused-test-hash", com.library.management.model.UserRole.ADMIN));
+        if (!users.existsByEmail("alice.patron@test.local")) users.save(new com.library.management.model.AppUser("alice.patron@test.local", "unused-test-hash", com.library.management.model.UserRole.MEMBER));
+        if (!users.existsByEmail("bob.patron@test.local")) users.save(new com.library.management.model.AppUser("bob.patron@test.local", "unused-test-hash", com.library.management.model.UserRole.MEMBER));
+        if (!users.existsByEmail("librarian2@test.local")) users.save(new com.library.management.model.AppUser("librarian2@test.local", "unused-test-hash", com.library.management.model.UserRole.LIBRARIAN));
+        if (!users.existsByEmail("librarian@test.local")) users.save(new com.library.management.model.AppUser("librarian@test.local", "unused-test-hash", com.library.management.model.UserRole.LIBRARIAN));
+        if (!users.existsByEmail("member@test.local")) users.save(new com.library.management.model.AppUser("member@test.local", "unused-test-hash", com.library.management.model.UserRole.MEMBER));
     }
 
     @Autowired
@@ -448,6 +425,12 @@ class LibraryApiIntegrationTest {
             LocalDate.now().minusDays(20),
             LocalDate.now().minusDays(6)
         ));
+
+        // Desk HTTP renewal must preserve the overdue due date and fine basis.
+        mvc.perform(post("/api/loans/" + backdated.getId() + "/renew")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + librarianToken))
+            .andExpect(status().isConflict());
+        assertEquals(backdated.getDueOn(), loanRepository.findById(backdated.getId()).orElseThrow().getDueOn());
 
         mvc.perform(post("/api/admin/jobs/run-reminders")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

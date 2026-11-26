@@ -71,7 +71,7 @@ class LoanServiceTest {
         when(bookRepository.findByIdForUpdate(1L))
             .thenReturn(Optional.of(book));
 
-        when(memberRepository.findById(2L))
+        when(memberRepository.findByIdForUpdate(2L))
             .thenReturn(Optional.of(member));
 
         when(loanRepository.save(any(Loan.class)))
@@ -100,7 +100,7 @@ class LoanServiceTest {
 
         when(bookRepository.findByIdForUpdate(1L))
             .thenReturn(Optional.of(book));
-        when(memberRepository.findById(2L))
+        when(memberRepository.findByIdForUpdate(2L))
             .thenReturn(Optional.of(new Member("Dara", "dara@example.com")));
         when(holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.READY_FOR_PICKUP))
             .thenReturn(Optional.empty());
@@ -134,6 +134,8 @@ class LoanServiceTest {
 
         loan.markReturned(today);
 
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(loanRepository.findBookIdById(5L)).thenReturn(Optional.of(1L));
         when(loanRepository.findByIdForUpdate(5L))
             .thenReturn(Optional.of(loan));
 
@@ -154,6 +156,7 @@ class LoanServiceTest {
         Loan loan = new Loan(book, member, today, today.plusDays(14));
         ReflectionTestUtils.setField(loan, "id", 10L);
 
+        when(loanRepository.findBookIdById(10L)).thenReturn(Optional.of(1L));
         when(loanRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(loan));
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
         when(holdRepository.existsByBookIdAndStatusIn(eq(1L), anyCollection())).thenReturn(false);
@@ -182,6 +185,7 @@ class LoanServiceTest {
         Loan loan = new Loan(book, member, today, today.plusDays(14));
         ReflectionTestUtils.setField(loan, "id", 11L);
 
+        when(loanRepository.findBookIdById(11L)).thenReturn(Optional.of(1L));
         when(loanRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(loan));
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
         when(holdRepository.existsByBookIdAndStatusIn(eq(1L), anyCollection())).thenReturn(true);
@@ -199,6 +203,8 @@ class LoanServiceTest {
         Member member = new Member("Dara", "dara@example.com");
         Loan loan = new Loan(book, member, LocalDate.now(), LocalDate.now().plusDays(14));
 
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(loanRepository.findBookIdById(12L)).thenReturn(Optional.of(1L));
         when(loanRepository.findByIdForUpdate(12L)).thenReturn(Optional.of(loan));
 
         assertThrows(
@@ -226,6 +232,7 @@ class LoanServiceTest {
         Hold waitingHold = new Hold(book, holder, Instant.now());
         ReflectionTestUtils.setField(waitingHold, "id", 30L);
 
+        when(loanRepository.findBookIdById(20L)).thenReturn(Optional.of(1L));
         when(loanRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(loan));
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
         when(holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.WAITING))
@@ -241,14 +248,14 @@ class LoanServiceTest {
         verify(holdRepository).save(waitingHold);
 
         // Other member cannot borrow reserved book
-        when(memberRepository.findById(2L)).thenReturn(Optional.of(borrower));
+        when(memberRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(borrower));
         when(holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.READY_FOR_PICKUP))
             .thenReturn(Optional.of(waitingHold));
 
         assertThrows(BusinessRuleException.class, () -> loanService.borrow(new BorrowRequest(1L, 2L)));
 
         // Ready holder CAN borrow and fulfills the hold
-        when(memberRepository.findById(3L)).thenReturn(Optional.of(holder));
+        when(memberRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(holder));
         LoanResponse fulfilledBorrow = loanService.borrow(new BorrowRequest(1L, 3L));
         assertEquals(HoldStatus.FULFILLED, waitingHold.getStatus());
         assertEquals("Bob", fulfilledBorrow.memberName());
@@ -262,7 +269,7 @@ class LoanServiceTest {
         ReflectionTestUtils.setField(member, "id", 2L);
 
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
-        when(memberRepository.findById(2L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(member));
         when(loanRepository.countByMemberIdAndReturnedOnIsNull(2L)).thenReturn(5L);
 
         BusinessRuleException limitEx = assertThrows(
@@ -314,7 +321,7 @@ class LoanServiceTest {
         ReflectionTestUtils.setField(alice, "id", 2L);
 
         when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
-        when(memberRepository.findById(2L)).thenReturn(Optional.of(alice));
+        when(memberRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(alice));
         when(copyRepo.findAllByBookIdOrderByIdAsc(1L)).thenReturn(List.of(copy1, copy2));
         when(loanRepository.save(any(Loan.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -325,6 +332,7 @@ class LoanServiceTest {
         // Simulate 4 days overdue return -> $2.00 UNPAID fine
         Loan overdueLoan = new Loan(book, copy1, alice, LocalDate.now().minusDays(18), LocalDate.now().minusDays(4));
         ReflectionTestUtils.setField(overdueLoan, "id", 55L);
+        when(loanRepository.findBookIdById(55L)).thenReturn(Optional.of(1L));
         when(loanRepository.findByIdForUpdate(55L)).thenReturn(Optional.of(overdueLoan));
         when(copyRepo.findByIdForUpdate(101L)).thenReturn(Optional.of(copy1));
         when(holdRepository.findFirstByBookIdAndStatusOrderByPlacedAtAscIdAsc(1L, HoldStatus.WAITING))
@@ -339,5 +347,71 @@ class LoanServiceTest {
         LoanResponse paid = fullService.payFine(55L, "Cash receipt");
         assertEquals(FineStatus.PAID, paid.fineStatus());
         assertEquals("Cash receipt", paid.fineNote());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"-1,false", "0,false", "1,false", "-1,true", "0,true", "1,true"})
+    void renewalDateBoundaryPreservesOverdueHistory(int daysAfterDue, boolean selfService) {
+        LocalDate due = LocalDate.of(2030, 6, 15);
+        LocalDate today = due.plusDays(daysAfterDue);
+        java.time.Clock clock = java.time.Clock.fixed(today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC);
+        LoanService service = new LoanService(bookRepository, memberRepository, loanRepository,
+            holdRepository, null, null, CirculationPolicyProperties.defaults(), clock);
+        Book book = new Book("Date boundaries", "Author", 2020);
+        ReflectionTestUtils.setField(book, "id", 1L);
+        Member member = new Member("Reader", "reader@example.com");
+        Loan loan = new Loan(book, member, due.minusDays(14), due);
+        when(loanRepository.findBookIdById(1L)).thenReturn(Optional.of(1L));
+        when(loanRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(loan));
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        Runnable renew = () -> {
+            if (selfService) service.renewOwnLoan(1L, member.getEmail());
+            else service.renewLoan(1L);
+        };
+        if (daysAfterDue > 0) {
+            assertEquals("Overdue loans cannot be renewed", assertThrows(BusinessRuleException.class, renew::run).getMessage());
+            assertEquals(due, loan.getDueOn());
+            assertEquals(0, loan.getRenewalCount());
+            assertNull(loan.getLastRenewedOn());
+            assertEquals(new BigDecimal("0.50"), service.calculateAccruedFine(loan, today));
+            LoanResponse response = LoanResponse.from(loan, false, null, new BigDecimal("0.50"), false, today);
+            assertFalse(response.renewable());
+            assertEquals("Overdue loans cannot be renewed", response.renewDisabledReason());
+            verify(loanRepository, never()).save(any());
+        } else {
+            when(loanRepository.save(any(Loan.class))).thenAnswer(inv -> inv.getArgument(0));
+            renew.run();
+            assertEquals(due.plusDays(14), loan.getDueOn());
+            assertEquals(today, loan.getLastRenewedOn());
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void fineBlockedMemberCannotRenewThroughEitherEndpoint(boolean selfService) {
+        LocalDate today = LocalDate.of(2030, 6, 15);
+        LoanService service = new LoanService(bookRepository, memberRepository, loanRepository,
+            holdRepository, null, null, CirculationPolicyProperties.defaults(),
+            java.time.Clock.fixed(today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
+        Book book = new Book("Fines", "Author", 2020);
+        ReflectionTestUtils.setField(book, "id", 1L);
+        Member member = new Member("Reader", "reader@example.com");
+        ReflectionTestUtils.setField(member, "id", 2L);
+        Loan loan = new Loan(book, member, today, today.plusDays(14));
+        Loan unpaid = new Loan(book, member, today.minusDays(60), today.minusDays(46));
+        unpaid.markReturned(today.minusDays(20));
+        unpaid.assessFine(new BigDecimal("13.00"));
+        when(loanRepository.findBookIdById(1L)).thenReturn(Optional.of(1L));
+        when(loanRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(loan));
+        when(bookRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(book));
+        when(loanRepository.findAllByMemberIdAndFineStatus(2L, FineStatus.UNPAID)).thenReturn(List.of(unpaid));
+        BusinessRuleException failure = assertThrows(BusinessRuleException.class, () -> {
+            if (selfService) service.renewOwnLoan(1L, member.getEmail());
+            else service.renewLoan(1L);
+        });
+        assertEquals("Blocked by unpaid overdue fines", failure.getMessage());
+        assertFalse(LoanResponse.from(loan, false, null, BigDecimal.ONE, true, today).renewable());
+        assertEquals(new BigDecimal("13.00"), unpaid.getFineAmount());
+        verify(loanRepository, never()).save(any());
     }
 }

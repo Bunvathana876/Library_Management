@@ -28,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -49,6 +50,7 @@ public class LoanService {
     private final BookCopyRepository bookCopyRepository;
     private final NotificationService notificationService;
     private final CirculationPolicyProperties policy;
+    private final Clock clock;
 
     public LoanService(
             BookRepository bookRepository,
@@ -83,7 +85,6 @@ public class LoanService {
         );
     }
 
-    @Autowired
     public LoanService(
             BookRepository bookRepository,
             MemberRepository memberRepository,
@@ -93,6 +94,18 @@ public class LoanService {
             NotificationService notificationService,
             CirculationPolicyProperties policy
     ) {
+        this(bookRepository, memberRepository, loanRepository, holdRepository,
+            bookCopyRepository, notificationService, policy, Clock.systemDefaultZone());
+    }
+
+    @Autowired
+    public LoanService(
+            BookRepository bookRepository, MemberRepository memberRepository,
+            LoanRepository loanRepository, HoldRepository holdRepository,
+            BookCopyRepository bookCopyRepository, NotificationService notificationService,
+            CirculationPolicyProperties policy, Clock clock
+    ) {
+        this.clock = clock != null ? clock : Clock.systemDefaultZone();
         this.bookRepository = bookRepository;
         this.memberRepository = memberRepository;
         this.loanRepository = loanRepository;
@@ -102,22 +115,24 @@ public class LoanService {
         this.policy = policy != null ? policy : CirculationPolicyProperties.defaults();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public LoanResponse borrow(BorrowRequest request) {
+        // Global circulation order: Book -> Member -> Loan/Hold -> Copy.
+        // PostgreSQL READ COMMITTED sees the preceding checkout after the member lock waits.
         Book book = bookRepository
             .findByIdForUpdate(request.bookId())
             .orElseThrow(() -> new BookNotFoundException(request.bookId()));
 
         Member member = memberRepository
-            .findById(request.memberId())
+            .findByIdForUpdate(request.memberId())
             .orElseThrow(() -> new ResourceNotFoundException("Member", request.memberId()));
 
         if (!member.isActive()) {
             throw new BusinessRuleException("Member account is deactivated and cannot borrow books");
         }
 
-        LocalDate today = LocalDate.now();
-        Instant now = Instant.now();
+        LocalDate today = LocalDate.now(clock);
+        Instant now = Instant.now(clock);
 
         long currentActiveCount = member.getId() != null
             ? loanRepository.countByMemberIdAndReturnedOnIsNull(member.getId())
@@ -171,7 +186,7 @@ public class LoanService {
         } else if (!allCopies.isEmpty()) {
             if (request.copyId() != null) {
                 BookCopy requested = bookCopyRepository
-                    .findByIdForUpdate(request.copyId())
+                    .findByIdAndBookIdForUpdate(request.copyId(), book.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Book copy", request.copyId()));
                 if (!requested.getBook().getId().equals(book.getId())) {
                     throw new BusinessRuleException("Selected copy does not belong to this book title");
@@ -230,11 +245,12 @@ public class LoanService {
 
         boolean hasActiveHold = hasActiveHoldOnBook(book.getId());
         boolean memberFineBlocked = isFineBlocked(member.getId(), today);
-        return LoanResponse.from(savedLoan, hasActiveHold, null, policy.getDailyFineRate(), memberFineBlocked);
+        return toResponse(savedLoan, hasActiveHold, null, policy.getDailyFineRate(), memberFineBlocked);
     }
 
     @Transactional
     public LoanResponse returnBook(Long loanId) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -247,8 +263,8 @@ public class LoanService {
             .findByIdForUpdate(loan.getBook().getId())
             .orElseThrow(() -> new BookNotFoundException(loan.getBook().getId()));
 
-        LocalDate today = LocalDate.now();
-        Instant now = Instant.now();
+        LocalDate today = LocalDate.now(clock);
+        Instant now = Instant.now(clock);
         loan.markReturned(today);
 
         BigDecimal assessedFine = calculateAccruedFine(loan, today);
@@ -310,7 +326,7 @@ public class LoanService {
 
         boolean hasActiveHold = hasActiveHoldOnBook(book.getId());
         boolean memberFineBlocked = isFineBlocked(savedLoan.getMember().getId(), today);
-        return LoanResponse.from(
+        return toResponse(
             savedLoan,
             hasActiveHold,
             heldForMemberName,
@@ -321,6 +337,7 @@ public class LoanService {
 
     @Transactional
     public LoanResponse renewLoan(Long loanId) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -330,6 +347,7 @@ public class LoanService {
 
     @Transactional
     public LoanResponse renewOwnLoan(Long loanId, String memberEmail) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -345,41 +363,26 @@ public class LoanService {
         return performRenewal(loan);
     }
 
+    private void lockLoanBook(Long loanId) {
+        Long bookId = loanRepository.findBookIdById(loanId)
+            .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
+        bookRepository.findByIdForUpdate(bookId)
+            .orElseThrow(() -> new BookNotFoundException(bookId));
+    }
+
     private LoanResponse performRenewal(Loan loan) {
         Book book = bookRepository
             .findByIdForUpdate(loan.getBook().getId())
             .orElseThrow(() -> new BookNotFoundException(loan.getBook().getId()));
 
-        if (loan.getReturnedOn() != null) {
-            throw new BusinessRuleException("Returned loans cannot be renewed");
-        }
-
-        LocalDate today = LocalDate.now();
-        if (loan.getMember() != null && !loan.getMember().isActive()) {
-            throw new BusinessRuleException("Deactivated member accounts cannot renew loans");
-        }
-
-        if (loan.getMember() != null && loan.getMember().getId() != null && isFineBlocked(loan.getMember().getId(), today)) {
-            BigDecimal total = calculateUnpaidFines(loan.getMember().getId(), today);
-            throw new BusinessRuleException(
-                "Renewal blocked: unpaid fines ($" + total.setScale(2, RoundingMode.HALF_UP)
-                    + ") reach the $" + policy.getFineBlockThreshold().setScale(2, RoundingMode.HALF_UP) + " limit"
-            );
-        }
-
-        if (loan.getRenewalCount() >= Loan.MAX_RENEWALS) {
-            throw new BusinessRuleException("This loan has reached the maximum of 2 renewals");
-        }
-
-        if (hasActiveHoldOnBook(book.getId())) {
-            throw new BusinessRuleException(
-                "Cannot renew this loan because another member has an active hold on this book"
-            );
-        }
+        LocalDate today = LocalDate.now(clock);
+        boolean fineBlocked = isFineBlocked(loan.getMember().getId(), today);
+        String reason = loan.renewalDisabledReason(today, hasActiveHoldOnBook(book.getId()), fineBlocked);
+        if (reason != null) throw new BusinessRuleException(reason);
 
         loan.renew(today);
         Loan saved = loanRepository.save(loan);
-        return LoanResponse.from(saved, false, null, policy.getDailyFineRate(), false);
+        return toResponse(saved, false, null, policy.getDailyFineRate(), false);
     }
 
     @Transactional(readOnly = true)
@@ -388,17 +391,17 @@ public class LoanService {
             .orElseThrow(() -> new ResourceNotFoundException("Loan", id));
 
         boolean hasActiveHold = hasActiveHoldOnBook(loan.getBook().getId());
-        boolean fineBlocked = loan.getMember() != null && isFineBlocked(loan.getMember().getId(), LocalDate.now());
-        return LoanResponse.from(loan, hasActiveHold, null, policy.getDailyFineRate(), fineBlocked);
+        boolean fineBlocked = loan.getMember() != null && isFineBlocked(loan.getMember().getId(), LocalDate.now(clock));
+        return toResponse(loan, hasActiveHold, null, policy.getDailyFineRate(), fineBlocked);
     }
 
     @Transactional(readOnly = true)
     public List<LoanResponse> getActiveLoans() {
         Set<Long> booksWithHolds = findBooksWithActiveHolds();
         List<Loan> active = loanRepository.findAllByReturnedOnIsNullOrderByDueOnAsc();
-        Map<Long, Boolean> blockedCache = computeBlockedMap(active, LocalDate.now());
+        Map<Long, Boolean> blockedCache = computeBlockedMap(active, LocalDate.now(clock));
         return active.stream()
-            .map(loan -> LoanResponse.from(
+            .map(loan -> toResponse(
                 loan,
                 booksWithHolds.contains(loan.getBook().getId()),
                 null,
@@ -411,11 +414,11 @@ public class LoanService {
     @Transactional(readOnly = true)
     public List<LoanResponse> getOverdueLoans() {
         Set<Long> booksWithHolds = findBooksWithActiveHolds();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         List<Loan> overdue = loanRepository.findAllByReturnedOnIsNullAndDueOnBeforeOrderByDueOnAsc(today);
         Map<Long, Boolean> blockedCache = computeBlockedMap(overdue, today);
         return overdue.stream()
-            .map(loan -> LoanResponse.from(
+            .map(loan -> toResponse(
                 loan,
                 booksWithHolds.contains(loan.getBook().getId()),
                 null,
@@ -427,7 +430,7 @@ public class LoanService {
 
     @Transactional(readOnly = true)
     public List<LoanResponse> getFineLoans() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         Set<Long> booksWithHolds = findBooksWithActiveHolds();
 
         List<Loan> settledOrUnpaidReturned = loanRepository.findAllByFineStatusNotOrderByIdDesc(FineStatus.NONE);
@@ -442,7 +445,7 @@ public class LoanService {
         }
 
         return combined.values().stream()
-            .map(loan -> LoanResponse.from(
+            .map(loan -> toResponse(
                 loan,
                 booksWithHolds.contains(loan.getBook().getId()),
                 null,
@@ -463,6 +466,7 @@ public class LoanService {
     }
 
     private LoanResponse settleFine(Long loanId, boolean paid, String note) {
+        lockLoanBook(loanId);
         Loan loan = loanRepository
             .findByIdForUpdate(loanId)
             .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
@@ -475,15 +479,15 @@ public class LoanService {
         }
 
         if (paid) {
-            loan.markFinePaid(Instant.now(), note);
+            loan.markFinePaid(Instant.now(clock), note);
         } else {
-            loan.markFineWaived(Instant.now(), note);
+            loan.markFineWaived(Instant.now(clock), note);
         }
 
         Loan saved = loanRepository.save(loan);
         boolean hasHold = hasActiveHoldOnBook(saved.getBook().getId());
-        boolean fineBlocked = isFineBlocked(saved.getMember().getId(), LocalDate.now());
-        return LoanResponse.from(saved, hasHold, null, policy.getDailyFineRate(), fineBlocked);
+        boolean fineBlocked = isFineBlocked(saved.getMember().getId(), LocalDate.now(clock));
+        return toResponse(saved, hasHold, null, policy.getDailyFineRate(), fineBlocked);
     }
 
     @Transactional(readOnly = true)
@@ -526,6 +530,11 @@ public class LoanService {
 
     public CirculationPolicyProperties getPolicy() {
         return policy;
+    }
+
+    private LoanResponse toResponse(Loan loan, boolean hasHold, String heldFor,
+            BigDecimal rate, boolean fineBlocked) {
+        return LoanResponse.from(loan, hasHold, heldFor, rate, fineBlocked, LocalDate.now(clock));
     }
 
     private Optional<Hold> findMemberReadyHold(Long bookId, Long memberId) {

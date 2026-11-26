@@ -44,6 +44,12 @@ public interface HoldRepository extends JpaRepository<Hold, Long> {
 
     void deleteAllByMemberId(Long memberId);
 
+    @Query("SELECT h.book.id FROM Hold h WHERE h.id = :id")
+    Optional<Long> findBookIdById(@Param("id") Long id);
+
+    @Query("SELECT DISTINCT h.book.id FROM Hold h WHERE h.status = :status AND h.expiresOn < :date ORDER BY h.book.id")
+    List<Long> findExpiredBookIds(@Param("status") HoldStatus status, @Param("date") LocalDate date);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Hold h WHERE h.id = :id")
     Optional<Hold> findByIdForUpdate(@Param("id") Long id);

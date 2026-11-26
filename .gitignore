@@ -79,3 +79,7 @@ application-secrets.yaml
 *.keystore
 *.log
 logs/
+
+### Playwright CLI & Local Test Artifacts ###
+.playwright-cli/
+output/

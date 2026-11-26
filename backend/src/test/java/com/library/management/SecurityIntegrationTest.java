@@ -31,7 +31,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class SecurityIntegrationTest {
+class SecurityIntegrationTest extends PostgresIntegrationTest {
 
     private static final String TEST_ADMIN_EMAIL = "test-sec-admin@library.local";
     private static final String TEST_LIBRARIAN_EMAIL = "test-sec-librarian@library.local";
@@ -342,10 +342,10 @@ class SecurityIntegrationTest {
             send("PATCH", "/api/members/" + memberId + "/status", "{\"active\":false}", adminToken)
                 .statusCode()
         );
-        assertEquals(204, send("DELETE", "/api/members/" + memberId, null, adminToken).statusCode());
+        assertEquals(409, send("DELETE", "/api/members/" + memberId, null, adminToken).statusCode());
 
-        // 5. Scheduled jobs endpoint requires ADMIN role
-        assertEquals(403, send("POST", "/api/admin/jobs/run-reminders", null, selfToken).statusCode());
+        // 5. Previously issued member token was revoked by password/status/role changes
+        assertEquals(401, send("POST", "/api/admin/jobs/run-reminders", null, selfToken).statusCode());
         assertEquals(200, send("POST", "/api/admin/jobs/run-reminders", null, adminToken).statusCode());
     }
 }

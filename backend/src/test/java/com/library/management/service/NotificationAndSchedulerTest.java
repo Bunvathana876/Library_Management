@@ -65,14 +65,14 @@ class NotificationAndSchedulerTest {
         Loan loan = new Loan(book, member, LocalDate.now().minusDays(12), LocalDate.now().plusDays(1));
         ReflectionTestUtils.setField(loan, "id", 10L);
 
-        when(notificationRepository.existsByRecipientEmailIgnoreCaseAndReferenceKey(eq("alice@example.com"), any()))
-            .thenReturn(false)
-            .thenReturn(true);
+        when(notificationRepository.insertIfAbsent(eq("alice@example.com"), any(), any(), any(), any()))
+            .thenReturn(1)
+            .thenReturn(0);
 
         assertTrue(service.notifyDueSoon(loan));
         assertFalse(service.notifyDueSoon(loan));
 
-        verify(notificationRepository, times(1)).save(any(Notification.class));
+        verify(notificationRepository, times(2)).insertIfAbsent(eq("alice@example.com"), any(), any(), any(), any());
         verify(mailSender, times(1)).send(any(SimpleMailMessage.class));
     }
 
@@ -143,5 +143,27 @@ class NotificationAndSchedulerTest {
         assertEquals(2, result.expiredHolds());
         assertEquals(1, result.dueSoonNotifications());
         assertEquals(1, result.overdueNotifications());
+    }
+
+    @Test
+    void emailWaitsForCommitAndDeliveryFailureDoesNotEscape() {
+        NotificationService service = new NotificationService(notificationRepository, mailSenderProvider,
+            true, "no-reply@athenaeum.local");
+        Loan loan = new Loan(new Book("Title", "Author", 2020), new Member("Reader", "reader@example.com"),
+            LocalDate.now(), LocalDate.now().plusDays(1));
+        when(notificationRepository.insertIfAbsent(any(), any(), any(), any(), any())).thenReturn(1);
+        when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
+        doThrow(new org.springframework.mail.MailSendException("SMTP unavailable")).when(mailSender).send(any(SimpleMailMessage.class));
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertTrue(service.notifyDueSoon(loan));
+            verifyNoInteractions(mailSender);
+            var callbacks = org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, callbacks.size());
+            assertDoesNotThrow(() -> callbacks.getFirst().afterCommit());
+            verify(mailSender).send(any(SimpleMailMessage.class));
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

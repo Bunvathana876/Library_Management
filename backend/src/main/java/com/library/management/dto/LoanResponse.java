@@ -58,7 +58,13 @@ public record LoanResponse(
             BigDecimal dailyFineRate,
             boolean memberFineBlocked
     ) {
-        LocalDate today = LocalDate.now();
+        return from(loan, hasActiveHold, heldForMemberName, dailyFineRate, memberFineBlocked, LocalDate.now());
+    }
+
+    public static LoanResponse from(
+            Loan loan, boolean hasActiveHold, String heldForMemberName,
+            BigDecimal dailyFineRate, boolean memberFineBlocked, LocalDate today
+    ) {
         BigDecimal effectiveRate = dailyFineRate != null ? dailyFineRate : DEFAULT_DAILY_FINE_RATE;
 
         boolean overdue =
@@ -91,21 +97,8 @@ public record LoanResponse(
 
         int renewalCount = loan.getRenewalCount();
         int maxRenewals = Loan.MAX_RENEWALS;
-        boolean renewable = loan.getReturnedOn() == null
-            && renewalCount < maxRenewals
-            && !hasActiveHold
-            && !memberFineBlocked;
-
-        String disabledReason = null;
-        if (loan.getReturnedOn() != null) {
-            disabledReason = "Already returned";
-        } else if (hasActiveHold) {
-            disabledReason = "Blocked by an active hold";
-        } else if (memberFineBlocked) {
-            disabledReason = "Blocked by unpaid overdue fines";
-        } else if (renewalCount >= maxRenewals) {
-            disabledReason = "Maximum 2 renewals reached";
-        }
+        String disabledReason = loan.renewalDisabledReason(today, hasActiveHold, memberFineBlocked);
+        boolean renewable = disabledReason == null;
 
         Long copyId = loan.getCopy() != null ? loan.getCopy().getId() : null;
         String copyBarcode = loan.getCopy() != null ? loan.getCopy().getBarcode() : null;
