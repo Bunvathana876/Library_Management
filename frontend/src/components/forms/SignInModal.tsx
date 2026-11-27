@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { AlertCircle, Eye, EyeOff, Lock, UserPlus } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { ErrorSummary, type SummaryErrorItem } from '@/components/ui/ErrorSummary';
 import { ModalDialog } from '@/components/ui/ModalDialog';
 import { useAuth } from '@/context/AuthContext';
@@ -115,7 +115,7 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
       notify({
         variant: 'success',
         title: mode === 'register' ? 'Member account created' : 'Signed in',
-        message: `Welcome! You are signed in as ${me.email}.`,
+        message: `Signed in as ${me.email}.`,
       });
       onAuthenticated?.(me);
     } catch (err) {
@@ -129,12 +129,12 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
     <ModalDialog
       open={open}
       onClose={handleClose}
-      title={mode === 'login' ? 'Sign in to Athenaeum' : 'Create a Patron Account'}
+      title={mode === 'login' ? 'Sign in to Athenaeum' : 'Create a library account'}
       subtitle={borrowTitle
         ? `Sign in or create an account to borrow “${borrowTitle}”. You will confirm your loan next.`
         : mode === 'login'
-          ? 'Sign in to borrow books and manage your loans in My Bookshelf'
-          : 'Create your free library account to borrow books, renew loans, and place holds'
+          ? 'Access your loans, reservations, and library account'
+          : 'Create a free borrower account to check out books and place holds'
       }
       size="sm"
     >
@@ -148,7 +148,6 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
               disabled={submitting}
               onClick={() => switchMode('login')}
             >
-              <Lock size={14} aria-hidden="true" />
               <span>Sign In</span>
             </button>
             <button
@@ -158,7 +157,6 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
               disabled={submitting}
               onClick={() => switchMode('register')}
             >
-              <UserPlus size={14} aria-hidden="true" />
               <span>Create Account</span>
             </button>
           </div>
@@ -190,6 +188,7 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
                 required
                 maxLength={120}
                 autoFocus
+                data-dialog-autofocus
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 aria-describedby="signup-fullname-hint"
@@ -207,11 +206,6 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
             <label className="field-label" htmlFor="signin-email">
               Email address
             </label>
-            <span id="signin-email-hint" className="field-hint">
-              {mode === 'login'
-                ? 'Enter the email address you used to create your library account.'
-                : 'Use your email address as your library sign-in identifier.'}
-            </span>
             <input
               id="signin-email"
               name="email"
@@ -222,9 +216,9 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
               enterKeyHint="next"
               required
               autoFocus={mode === 'login'}
+              data-dialog-autofocus={mode === 'login' || undefined}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              aria-describedby="signin-email-hint"
               data-error="signin-email-error"
               placeholder="you@example.com"
             />
@@ -238,11 +232,7 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
             <label className="field-label" htmlFor="signin-password">
               Password
             </label>
-            <span id="signin-password-hint" className="field-hint">
-              {mode === 'login'
-                ? 'Paste or type your account password.'
-                : 'Minimum 12 characters. Password managers and pasting are supported.'}
-            </span>
+            {mode === 'register' ? <span id="signin-password-hint" className="field-hint">Use 12–72 characters. Password managers and pasting are supported.</span> : null}
             <div className="input-with-action">
               <input
                 id="signin-password"
@@ -256,7 +246,7 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
                 maxLength={72}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                aria-describedby="signin-password-hint"
+                aria-describedby={mode === 'register' ? 'signin-password-hint' : undefined}
                 data-error="signin-password-error"
               />
               <button
@@ -297,12 +287,7 @@ export function SignInModal({ open, onClose, initialMode = 'login', onAuthentica
             </div>
           </div>
 
-          <div className="alert alert-info">
-            <Lock size={16} aria-hidden="true" className="alert-icon" />
-            <span>
-              Sessions remain active for 30 minutes before requiring re-authentication.
-            </span>
-          </div>
+
         </div>
 
         <div className="modal-footer">

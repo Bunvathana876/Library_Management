@@ -1,33 +1,37 @@
-# Athenaeum — Editorial Design System (`MASTER.md`)
+# Athenaeum — Editorial Library Design System (`MASTER.md`)
 
 ## 1. Visual Direction
-**Athenaeum Editorial Studio** combines warm archival parchment & stone surfaces (Light Mode) and deep obsidian-slate surfaces (Dark Mode) with **Deep Library Teal** (`#0F766E` / `#2DD4BF`) and **Warm Scholarly Brass** (`#B45309` / `#F59E0B`). Headings pair refined literary serif typography (`Cormorant Garamond` / `Newsreader`) with crisp geometric UI sans (`Plus Jakarta Sans`) and tabular monospace (`JetBrains Mono`) for catalog IDs, dates, and API paths.
+**Athenaeum** is designed as a working university library and circulation desk ("Paper, Ink & Forest"). Surfaces use warm archival paper neutrals (`#faf9f6` canvas, `#f1f2eb` navigation rail, `#ffffff` elevated surfaces) in Light Mode and deep botanical slate (`#171e1a` canvas, `#1e2821` surface) in Dark Mode, anchored by a single **Forest Green** primary accent (`#285844` light / `#a4c8ae` dark). Book covers provide natural color and variety while administrative controls stay quiet, legible, and direct.
 
-## 2. Three-Layer Token Architecture
-All visual properties live in [`tokens.css`](../src/styles/tokens.css):
+## 2. Token Architecture (`frontend/src/styles/tokens.css`)
 
-1. **Primitive Tokens (`--teal-*`, `--brass-*`, `--stone-*`, `--obsidian-*`, `--space-*`, `--text-*`, `--radius-*`, `--duration-*`)**
-   - 8-point / 4-point rhythm: `--space-1: 0.25rem` (4px), `--space-2: 0.5rem` (8px), `--space-3: 0.75rem` (12px), `--space-4: 1rem` (16px), `--space-5: 1.25rem` (20px), `--space-6: 1.5rem` (24px), `--space-8: 2rem` (32px), `--space-12: 3rem` (48px).
-   - Icon sizing discipline: `--icon-sm: 1rem` (16px), `--icon-md: 1.25rem` (20px), `--icon-lg: 1.5rem` (24px).
-2. **Semantic Tokens (`--bg-canvas`, `--bg-surface`, `--text-primary`, `--text-secondary`, `--text-muted`, `--accent`, `--brass`, `--success`, `--warning`, `--danger`, `--info`, `--spine-1`..`--spine-6`)**
-   - Light/Dark polarity driven via `light-dark()` inside `@supports` with `@media (prefers-color-scheme: dark)` fallback and `:root:has(> head > meta[name="color-scheme"])` user override reflection.
-   - Contrast targets: normal text `>= 4.5:1` (`#131F1C` on `#FFFFFF` / `#F6F3EC`, `#EFF5F3` on `#111A18` / `#0A100F`, muted dark `#97ACA5` on `#111A18` >= 6.4:1).
-3. **Component Tokens (`--btn-*`, `--card-*`, `--input-*`, `--modal-*`, `--table-*`, `--nav-*`, `--badge-*`)**
-   - Uniform height, radius, padding, and border semantics across buttons, inputs, cards, native `<dialog>` modals, and responsive tables.
+1. **Spacing & Geometry**
+   - 4px / 8px grid: `--space-1` (`4px`), `--space-2` (`8px`), `--space-3` (`12px`), `--space-4` (`16px`), `--space-5` (`20px`), `--space-6` (`24px`), `--space-8` (`32px`), `--space-10` (`40px`), `--space-12` (`48px`).
+   - Restrained corners: `--radius-xs` (`3px`), `--radius-sm` (`4px`), `--radius-md` (`6px`), `--radius-lg` (`8px`). No oversized pills or nested card boxes.
+   - Shadows reserved strictly for top-layer overlays (`--shadow-md`, `--shadow-lg`) and subtle physical book-cover depth; workspace sections divide via `1px` hairlines (`--border-subtle`, `--border-strong`).
 
-## 3. Typography Scale & Wrapping
-- Display / Hero Heading: `Cormorant Garamond`, `clamp(1.65rem, 2.8vw, 2.35rem)`, `line-height: 1.12`, `text-wrap: balance`.
-- Editorial Card / Book Title: `Newsreader`, `1.2rem`, `font-weight: 600`, `text-wrap: balance`.
-- Body / Controls: `Plus Jakarta Sans`, `0.9375rem` (15px), `line-height: 1.55`.
-- Metadata / Call Numbers / Dates: `JetBrains Mono`, `font-variant-numeric: tabular-nums`.
-- Descriptions & Paragraphs: `text-wrap: pretty` to avoid awkward single-word orphans.
+2. **Semantic Color Roles & WCAG 2.2 AA Contrast**
+   - **Light Mode (Default)**:
+     - Canvas `#faf9f6`, Surface `#ffffff`, Muted `#f0efe9`, Sidebar `#f1f2eb`.
+     - Ink hierarchy: `--text-primary` (`#222e29`, ~13.8:1), `--text-secondary` (`#535f56`, ~6.3:1), `--text-muted` (`#59645b`, >= 5.1:1).
+     - Primary action: `--accent` (`#285844`) with `--accent-text` (`#ffffff`, 8.15:1).
+   - **Dark Mode (`meta[name="color-scheme"][content="dark"]`)**:
+     - Canvas `#171e1a`, Surface `#1e2821`, Muted `#273229`, Sidebar `#1c251e`.
+     - Ink hierarchy: `--text-primary` (`#f0f0e6`), `--text-secondary` (`#c0c9be`), `--text-muted` (`#a8b5a7`, >= 5.8:1).
+     - Primary action: `--accent` (`#a4c8ae`) with dark ink `--accent-text` (`#172e20`, 8.4:1).
+   - **Semantic Status Tones**: `--success`, `--warning`, `--danger` (plus `--danger-solid` for high-contrast filled counters and destructive buttons), and `--info`.
 
-## 4. Layout & Breakpoints
-- **Desktop (`>= 1024px`)**: `272px` sticky left rail (`Sidebar`) + `72px` translucent sticky `TopBar` + `1360px` max-width workspace canvas.
-- **Tablet (`768px–1023px`)**: Slide-out navigation drawer with explicit close control and `Esc` dismissal; responsive 2-column grids.
-- **Mobile (`< 768px`)**: Safe-area-aware sticky `BottomNav` (`>= 44px` touch targets), stacked `@container` data tables (`< 540px`), and bottom clearance (`--bottom-nav-height + env(safe-area-inset-bottom)`).
+3. **Typography**
+   - **Editorial Headings & Book Titles**: `Newsreader` (`400`–`500`), `text-wrap: balance`.
+   - **Interface & Controls**: `Inter` (`400`, `500`, `600`), `0.9375rem` (`15px`) base body with `1.55` line height, `text-wrap: pretty` on paragraphs.
+   - **Identifiers & Counts**: System monospace (`--font-mono`) and `font-variant-numeric: tabular-nums` for call numbers (`CAT-0001`), copy barcodes (`CPY-0001-01`), member passes (`MEM-0001`), loan codes, dates, and currency.
 
-## 5. Interaction, Motion & Accessibility
-- **Top-Layer Animation**: Native `<dialog>` uses `@starting-style`, `overlay`, and `transition-behavior: allow-discrete` with an explicit `data-closing` + `getAnimations()` fallback for Firefox/Safari.
-- **Reduced Motion**: Non-essential transforms and stagger entrances disable automatically inside `@media (prefers-reduced-motion: reduce)`.
-- **WCAG 2.2 AA**: `scroll-padding-top` prevents sticky topbar focus occlusion; forms surface a focusable `ErrorSummary` on failed submit while keeping `:user-invalid` inline errors linked via `aria-describedby`.
+## 3. Layout, Responsive Shell & Container Queries
+- **Desktop (`>= 1024px`)**: `236px` sticky left rail (`Sidebar`) showing only role-permitted sections + `72px` `TopBar` + `1480px` max-width `page-content` container (`container: page / inline-size`).
+- **Tablet (`768px–1023px`)**: Modal slide-out `Sidebar` drawer with focus containment, `inert` background locking, `Esc` dismissal, and focus restoration.
+- **Mobile (`< 768px`)**: Safe-area-aware fixed `BottomNav` (`>= 44px` touch targets), horizontal-to-vertical shelf adaptation (`@container page`), and flat stacked ledger rows (`@container (width < 540px)`) without nested card borders.
+
+## 4. Interaction, Honesty & Accessibility
+- **Data Integrity**: Inventory summaries sum real physical-copy counts (`totalCopies`, `availableCopies`, `loanedCopies`, `onHoldCopies`) and surface unknown/loading/error states explicitly. Missing book covers render a typographic cover placeholder rather than unrelated stock art.
+- **Confirmation Gates**: Fine settlement, fine waivers, reservation cancellations, copy deletions, member status changes, and admin account/job mutations require contextual confirmation via `useConfirmation`.
+- **Top-Layer & Reduced Motion**: Native `<dialog>` modals/drawers and HTML `popover` notifications/toasts use `--backdrop-scrim` and discrete exit transitions, honoring `@media (prefers-reduced-motion: reduce)` and `@media (forced-colors: active)`.

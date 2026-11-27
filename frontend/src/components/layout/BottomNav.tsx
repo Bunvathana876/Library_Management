@@ -24,7 +24,7 @@ export function BottomNav({ activeTab, onSelectTab, counts }: BottomNavProps) {
     badgeTone?: 'danger';
   }> = [
     { id: 'overview', label: 'Home', icon: LayoutDashboard },
-    { id: 'books', label: 'Books', icon: BookOpen, badge: counts.books > 0 ? counts.books : null },
+    { id: 'books', label: 'Books', icon: BookOpen, badge: null },
     ...(isStaff
       ? [
           {
@@ -34,7 +34,7 @@ export function BottomNav({ activeTab, onSelectTab, counts }: BottomNavProps) {
             badge:
               counts.overdueLoans && counts.overdueLoans > 0
                 ? counts.overdueLoans
-                : counts.activeLoans,
+                : null,
             badgeTone: counts.overdueLoans && counts.overdueLoans > 0 ? ('danger' as const) : undefined,
           },
           { id: 'members' as NavTab, label: 'Members', icon: Users },
@@ -58,7 +58,7 @@ export function BottomNav({ activeTab, onSelectTab, counts }: BottomNavProps) {
   ];
 
   return (
-    <nav className="bottom-nav" aria-label="Mobile quick">
+    <nav className="bottom-nav" aria-label="Primary mobile navigation">
       {items.map((item) => {
         const Icon = item.icon;
         const current = activeTab === item.id;

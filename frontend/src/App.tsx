@@ -1,6 +1,6 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { booksApi } from '@/api/booksApi';
-import { healthApi } from '@/api/healthApi';
 import { holdsApi } from '@/api/holdsApi';
 import { loansApi } from '@/api/loansApi';
 import { memberPortalApi } from '@/api/memberPortalApi';
@@ -35,7 +35,6 @@ import { OverviewPage } from '@/pages/OverviewPage';
 import type {
   AuthUser,
   Book,
-  HealthResponse,
   HoldResponse,
   LoanResponse,
   Member,
@@ -110,10 +109,6 @@ function LibraryWorkspace() {
     document.title = TAB_PAGE_TITLES[activeTab];
   }, [activeTab]);
 
-  // Health state
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [healthError, setHealthError] = useState(false);
-
   // Complete library data; BooksPage derives its own filtered catalog view.
   const [books, setBooks] = useState<Book[]>([]);
   const [bookSearch, setBookSearch] = useState('');
@@ -126,7 +121,8 @@ function LibraryWorkspace() {
   const [overdueLoans, setOverdueLoans] = useState<LoanResponse[]>([]);
   const [fineLoans, setFineLoans] = useState<LoanResponse[]>([]);
   const [activeHolds, setActiveHolds] = useState<HoldResponse[]>([]);
-  const [loadingStaffData, setLoadingStaffData] = useState(false);
+  const [loadingStaffData, setLoadingStaffData] = useState(true);
+  const [staffDataError, setStaffDataError] = useState<string | null>(null);
 
   // Member self-service bookshelf & notifications state
   const [bookshelf, setBookshelf] = useState<MemberBookshelfResponse | null>(null);
@@ -154,6 +150,7 @@ function LibraryWorkspace() {
 
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [returningLoan, setReturningLoan] = useState<LoanResponse | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   useEffect(() => {
@@ -193,18 +190,6 @@ function LibraryWorkspace() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [focusCatalogSearch]);
 
-  const fetchHealth = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const status = await healthApi.getHealth(signal);
-      setHealth(status);
-      setHealthError(false);
-    } catch {
-      if (!signal?.aborted) {
-        setHealthError(true);
-      }
-    }
-  }, []);
-
   const fetchBooks = useCallback(
     async (signal?: AbortSignal) => {
       setLoadingBooks(true);
@@ -237,6 +222,7 @@ function LibraryWorkspace() {
       }
 
       setLoadingStaffData(true);
+      setStaffDataError(null);
       try {
         const [memberList, activeList, overdueList, fineList, holdList] = await Promise.all([
           membersApi.listMembers(signal),
@@ -245,6 +231,7 @@ function LibraryWorkspace() {
           loansApi.getFineLoans(signal),
           holdsApi.getActiveHolds(signal),
         ]);
+        if (signal?.aborted) return;
         setMembers(memberList);
         setActiveLoans(activeList);
         setOverdueLoans(overdueList);
@@ -252,6 +239,7 @@ function LibraryWorkspace() {
         setActiveHolds(holdList);
       } catch (err) {
         if (!signal?.aborted) {
+          setStaffDataError(formatApiErrorMessage(err));
           notify({
             variant: 'error',
             title: 'Failed to sync circulation data',
@@ -303,7 +291,7 @@ function LibraryWorkspace() {
       setBookshelfError(null);
       try {
         const data = await memberPortalApi.getBookshelf(signal);
-        setBookshelf(data);
+        if (!signal?.aborted) setBookshelf(data);
       } catch (err) {
         if (!signal?.aborted) {
           setBookshelfError(formatApiErrorMessage(err));
@@ -326,21 +314,19 @@ function LibraryWorkspace() {
     ]);
   }, [fetchBooks, fetchStaffData, fetchBookshelf, fetchNotifications]);
 
-  // Initial & polled health + notifications check
+  // Refresh notifications while the signed-in page is visible.
   useEffect(() => {
     const controller = new AbortController();
-    void fetchHealth(controller.signal);
     const interval = window.setInterval(() => {
-      void fetchHealth();
-      if (isAuthenticated) {
-        void fetchNotifications();
+      if (isAuthenticated && document.visibilityState === 'visible') {
+        void fetchNotifications(controller.signal);
       }
     }, 30000);
     return () => {
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [fetchHealth, fetchNotifications, isAuthenticated]);
+  }, [fetchNotifications, isAuthenticated]);
 
   // Fetch the complete public library once; search stays local to the catalog.
   useEffect(() => {
@@ -450,6 +436,7 @@ function LibraryWorkspace() {
   };
 
   const handleCancelHold = async (hold: HoldResponse) => {
+    if (!await confirm({ title: 'Cancel reservation?', message: `Cancel the hold for “${hold.bookTitle}”? Its place in the queue will be released.`, confirmLabel: 'Cancel reservation' })) return;
     try {
       await holdsApi.cancelHold(hold.id);
       await refreshAllCirculation();
@@ -548,6 +535,7 @@ function LibraryWorkspace() {
   };
 
   const handlePayFine = async (loan: LoanResponse, note?: string) => {
+    if (!await confirm({ title: 'Record fine payment?', message: `Confirm receipt of ${formatCurrency(loan.fineAmount)} from ${loan.memberName} for “${loan.bookTitle}” (Loan #${loan.id}).`, confirmLabel: 'Record payment', variant: 'primary' })) return;
     try {
       const updated = await loansApi.payFine(loan.id, note);
       await refreshAllCirculation();
@@ -566,6 +554,7 @@ function LibraryWorkspace() {
   };
 
   const handleWaiveFine = async (loan: LoanResponse, note?: string) => {
+    if (!await confirm({ title: 'Waive overdue fine?', message: `Waive ${formatCurrency(loan.fineAmount)} for ${loan.memberName}, “${loan.bookTitle}” (Loan #${loan.id})? No payment will be recorded.`, confirmLabel: 'Waive fine' })) return;
     try {
       const updated = await loansApi.waiveFine(loan.id, note);
       await refreshAllCirculation();
@@ -621,9 +610,6 @@ function LibraryWorkspace() {
           overdueLoans: isStaff ? overdueLoans.length : null,
           members: isStaff ? members.length : null,
         }}
-        health={health}
-        healthError={healthError}
-        onRefreshHealth={() => void fetchHealth()}
         onOpenChangePassword={() => setChangePasswordOpen(true)}
       />
 
@@ -650,6 +636,7 @@ function LibraryWorkspace() {
         />
 
         <main id="main-content" tabIndex={-1} className="page-content">
+          {isStaff && staffDataError && ['overview', 'loans', 'members'].includes(activeTab) ? <div className="alert alert-danger alert-row" role="alert"><span>{staffDataError}</span><button className="btn btn-secondary btn-sm" onClick={() => void fetchStaffData()}>Retry circulation</button></div> : null}
           {activeTab === 'overview' ? (
             <OverviewPage
               books={books}
@@ -658,6 +645,9 @@ function LibraryWorkspace() {
               members={members}
               bookshelf={bookshelf}
               loadingBooks={loadingBooks}
+              loadingStaff={loadingStaffData}
+              staffError={staffDataError}
+              activeHolds={activeHolds}
               booksError={booksError}
               onRetryBooks={() => void fetchBooks()}
               onNavigate={setActiveTab}
@@ -853,9 +843,11 @@ function LibraryWorkspace() {
 
       <ChangePasswordModal
         open={changePasswordOpen}
+        email={user?.email}
         onClose={() => setChangePasswordOpen(false)}
       />
 
+      {confirmationDialog}
       <ConfirmDialog
         open={deletingBook !== null}
         onClose={() => setDeletingBook(null)}

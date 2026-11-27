@@ -1,3 +1,5 @@
+import type { BookCopyStatus, FineStatus, HoldStatus } from '@/types/api';
+
 export function formatCallNumber(bookId: number): string {
   return `CAT-${String(Math.max(0, bookId)).padStart(4, '0')}`;
 }
@@ -13,6 +15,49 @@ export function formatLoanCode(loanId: number): string {
 export function formatCurrency(amount: number | null | undefined): string {
   const num = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
   return `$${num.toFixed(2)}`;
+}
+
+export function formatCopyStatus(status: BookCopyStatus): string {
+  switch (status) {
+    case 'AVAILABLE':
+      return 'Available';
+    case 'LOANED':
+      return 'Checked out';
+    case 'ON_HOLD':
+      return 'On hold';
+    case 'DAMAGED':
+      return 'Damaged';
+    case 'LOST':
+      return 'Lost';
+  }
+}
+
+export function formatFineStatus(status?: FineStatus | null): string {
+  switch (status) {
+    case 'UNPAID':
+      return 'Unpaid';
+    case 'PAID':
+      return 'Paid';
+    case 'WAIVED':
+      return 'Waived';
+    default:
+      return 'None';
+  }
+}
+
+export function formatHoldStatus(status: HoldStatus, queuePosition?: number): string {
+  switch (status) {
+    case 'READY_FOR_PICKUP':
+      return 'Ready for pickup';
+    case 'WAITING':
+      return queuePosition ? `Waiting #${queuePosition}` : 'Waiting';
+    case 'FULFILLED':
+      return 'Checked out';
+    case 'CANCELLED':
+      return 'Cancelled';
+    case 'EXPIRED':
+      return 'Expired';
+  }
 }
 
 export function getInitials(fullName: string): string {

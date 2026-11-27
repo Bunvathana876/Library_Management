@@ -1,14 +1,8 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  Clock,
-  History,
-  Pencil,
   Phone,
-  Power,
-  Receipt,
-  Repeat,
-  Trash2,
   X,
 } from 'lucide-react';
 import { membersApi } from '@/api/membersApi';
@@ -22,6 +16,8 @@ import { formatApiErrorMessage } from '@/utils/errors';
 import {
   formatCallNumber,
   formatCurrency,
+  formatFineStatus,
+  formatHoldStatus,
   formatLoanCode,
   formatMemberCardCode,
 } from '@/utils/formatting';
@@ -54,6 +50,7 @@ export function MemberHistoryDrawer({
   onMembersChanged,
 }: MemberHistoryDrawerProps) {
   const { notify } = useToast();
+  const { confirm, confirmationDialog } = useConfirmation();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const tabsPrefix = useId();
@@ -130,6 +127,7 @@ export function MemberHistoryDrawer({
 
   const handleToggleActive = async () => {
     if (!detail) return;
+    if (detail.active && !await confirm({ title: 'Deactivate member?', message: `Suspend borrowing for ${detail.fullName}? Their history will remain available.`, confirmLabel: 'Deactivate member' })) return;
     setActionBusy(true);
     try {
       const updated = await membersApi.updateMemberStatus(detail.id, !detail.active);
@@ -153,6 +151,7 @@ export function MemberHistoryDrawer({
 
   const handleDelete = async () => {
     if (!detail) return;
+    if (!await confirm({ title: 'Delete member?', message: `Permanently remove ${detail.fullName} from the directory? Members with circulation history cannot be deleted.`, confirmLabel: 'Delete member' })) return;
     setActionBusy(true);
     try {
       await membersApi.deleteMember(detail.id);
@@ -188,14 +187,16 @@ export function MemberHistoryDrawer({
 
   const tabs: ReadonlyArray<TabItem<DrawerTab>> = detail
     ? [
-        { id: 'loans', label: 'Loans', count: detail.activeLoans.length, icon: <Repeat size={14} /> },
-        { id: 'fines', label: 'Fines', count: detail.fineLoans.length, icon: <Receipt size={14} /> },
-        { id: 'holds', label: 'Holds', count: detail.activeHolds.length, icon: <Clock size={14} /> },
-        { id: 'history', label: 'History', count: detail.returnHistory.length, icon: <History size={14} /> },
+        { id: 'loans', label: 'Loans', count: detail.activeLoans.length },
+        { id: 'fines', label: 'Fines', count: detail.fineLoans.length },
+        { id: 'holds', label: 'Holds', count: detail.activeHolds.length },
+        { id: 'history', label: 'History', count: detail.returnHistory.length },
       ]
     : [];
 
   return (
+    <>
+    {confirmationDialog}
     <dialog
       ref={dialogRef}
       className="drawer-dialog"
@@ -270,7 +271,7 @@ export function MemberHistoryDrawer({
                 </div>
               ) : null}
 
-              <div className="row-actions" style={{ marginTop: '0.5rem' }}>
+              <div className="row-actions">
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
@@ -280,7 +281,6 @@ export function MemberHistoryDrawer({
                     onBorrowForMember(toMemberStub(detail));
                   }}
                 >
-                  <Repeat size={14} aria-hidden="true" />
                   <span>Issue Loan</span>
                 </button>
                 <button
@@ -292,7 +292,6 @@ export function MemberHistoryDrawer({
                     onEditMember(toMemberStub(detail));
                   }}
                 >
-                  <Pencil size={14} aria-hidden="true" />
                   <span>Edit Profile</span>
                 </button>
                 <button
@@ -301,7 +300,6 @@ export function MemberHistoryDrawer({
                   disabled={actionBusy}
                   onClick={() => void handleToggleActive()}
                 >
-                  <Power size={14} aria-hidden="true" />
                   <span>{detail.active ? 'Deactivate' : 'Reactivate'}</span>
                 </button>
                 <button
@@ -310,7 +308,6 @@ export function MemberHistoryDrawer({
                   disabled={actionBusy}
                   onClick={() => void handleDelete()}
                 >
-                  <Trash2 size={14} aria-hidden="true" />
                   <span>Delete</span>
                 </button>
               </div>
@@ -326,9 +323,9 @@ export function MemberHistoryDrawer({
 
             {drawerTab === 'loans' ? (
               detail.activeLoans.length === 0 ? (
-                <p className="text-muted">No active loans for this member.</p>
+                <p className="drawer-empty-note">No active loans for this member.</p>
               ) : (
-                <div className="queue-list" style={{ padding: 0 }}>
+                <div className="queue-list">
                   {detail.activeLoans.map((loan) => (
                     <div key={loan.id} className="queue-row">
                       <div className="queue-row-main">
@@ -380,9 +377,9 @@ export function MemberHistoryDrawer({
 
             {drawerTab === 'fines' ? (
               detail.fineLoans.length === 0 ? (
-                <p className="text-muted">No overdue fines on record.</p>
+                <p className="drawer-empty-note">No overdue fines on record.</p>
               ) : (
-                <div className="queue-list" style={{ padding: 0 }}>
+                <div className="queue-list">
                   {detail.fineLoans.map((loan) => (
                     <div key={loan.id} className="queue-row">
                       <div className="queue-row-main">
@@ -397,7 +394,7 @@ export function MemberHistoryDrawer({
                                   : 'neutral'
                             }
                           >
-                            {loan.fineStatus} · {formatCurrency(loan.fineAmount)}
+                            {formatFineStatus(loan.fineStatus)} · {formatCurrency(loan.fineAmount)}
                           </StatusBadge>
                         </div>
                         <div className="queue-row-title">{loan.bookTitle}</div>
@@ -436,9 +433,9 @@ export function MemberHistoryDrawer({
 
             {drawerTab === 'holds' ? (
               detail.activeHolds.length === 0 && detail.pastHolds.length === 0 ? (
-                <p className="text-muted">No active or past holds for this member.</p>
+                <p className="drawer-empty-note">No active or past holds for this member.</p>
               ) : (
-                <div className="queue-list" style={{ padding: 0 }}>
+                <div className="queue-list">
                   {[...detail.activeHolds, ...detail.pastHolds].map((hold) => (
                     <div key={hold.id} className="queue-row">
                       <div className="queue-row-main">
@@ -453,7 +450,7 @@ export function MemberHistoryDrawer({
                                   : 'neutral'
                             }
                           >
-                            {hold.status === 'WAITING' ? `Waiting #${hold.queuePosition}` : hold.status}
+                            {formatHoldStatus(hold.status, hold.queuePosition)}
                           </StatusBadge>
                         </div>
                         <div className="queue-row-title">{hold.bookTitle}</div>
@@ -476,9 +473,9 @@ export function MemberHistoryDrawer({
 
             {drawerTab === 'history' ? (
               detail.returnHistory.length === 0 ? (
-                <p className="text-muted">No returned loans on record yet.</p>
+                <p className="drawer-empty-note">No returned loans on record yet.</p>
               ) : (
-                <div className="queue-list" style={{ padding: 0 }}>
+                <div className="queue-list">
                   {detail.returnHistory.map((loan) => (
                     <div key={loan.id} className="queue-row">
                       <div className="queue-row-main">
@@ -487,7 +484,7 @@ export function MemberHistoryDrawer({
                           {formatLoanCode(loan.id)} · Borrowed {formatCalendarDate(loan.borrowedOn)} ·
                           Returned {formatCalendarDate(loan.returnedOn)}
                           {loan.fineStatus && loan.fineStatus !== 'NONE'
-                            ? ` · Fine ${formatCurrency(loan.fineAmount)} (${loan.fineStatus})`
+                            ? ` · Fine ${formatCurrency(loan.fineAmount)} (${formatFineStatus(loan.fineStatus)})`
                             : ''}
                         </div>
                       </div>
@@ -500,5 +497,6 @@ export function MemberHistoryDrawer({
         ) : null}
       </div>
     </dialog>
+    </>
   );
 }

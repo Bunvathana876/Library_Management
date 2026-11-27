@@ -1,4 +1,4 @@
-// Playwright CLI run-code callback. Open the local app as a guest first.
+// Playwright CLI run-code callback. Open the local app as a guest or staff user first.
 // Requires a populated catalog; never writes application data.
 async (page) => {
   const origin = new URL(page.url()).origin;
@@ -10,28 +10,34 @@ async (page) => {
   const failures = [];
   try {
     await page.goto(`${origin}/#overview`);
-    await page.locator('.highlight-title').first().waitFor();
+    await page.locator('.page-intro h2').first().waitFor();
     await page.evaluate(() => document.fonts.ready);
     for (const scale of ['100%', '200%']) {
       for (const [width, height] of sizes) {
         await page.setViewportSize({ width, height });
-        await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
+        await page.evaluate((value) => { document.documentElement.style.fontSize = value; }, scale);
         await page.evaluate(async () => {
-          await Promise.allSettled(document.getAnimations()
-            .filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished));
-          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          await Promise.allSettled(
+            document.getAnimations()
+              .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+              .map((a) => a.finished),
+          );
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         });
         const measurement = await page.evaluate(() => {
-          const selectors = '.hero-banner,.hero-content,.kpi-card,.card,.card-header,.highlight-row,.topbar-left,.topbar-actions';
+          const selectors = '.page-intro,.operational-summary,.recent-book,.queue-row,.card,.card-header,.topbar-left,.topbar-actions';
           const clipped = [...document.querySelectorAll(selectors)]
-            .filter(el => el.scrollWidth > el.clientWidth + 2)
-            .map(el => ({ element: el.className, width: el.clientWidth, content: el.scrollWidth }));
-          const heading = document.querySelector('.hero-heading');
-          const range = document.createRange();
-          range.selectNodeContents(heading);
-          const bounds = heading.getBoundingClientRect();
-          const headingClipped = [...range.getClientRects()]
-            .some(rect => rect.right > bounds.right + 2 || rect.left < bounds.left - 2);
+            .filter((el) => el.scrollWidth > el.clientWidth + 2)
+            .map((el) => ({ element: el.className, width: el.clientWidth, content: el.scrollWidth }));
+          const heading = document.querySelector('.page-intro h2');
+          let headingClipped = false;
+          if (heading) {
+            const range = document.createRange();
+            range.selectNodeContents(heading);
+            const bounds = heading.getBoundingClientRect();
+            headingClipped = [...range.getClientRects()]
+              .some((rect) => rect.right > bounds.right + 2 || rect.left < bounds.left - 2);
+          }
           return {
             documentFits: document.documentElement.scrollWidth <= innerWidth + 1,
             sidebarHidden: getComputedStyle(document.querySelector('.sidebar')).visibility === 'hidden',
@@ -41,8 +47,14 @@ async (page) => {
         });
         const result = { width, height, scale, ...measurement };
         results.push(result);
-        if (!measurement.documentFits || measurement.headingClipped || measurement.clipped.length
-            || (width < 1024 && !measurement.sidebarHidden)) failures.push(result);
+        if (
+          !measurement.documentFits ||
+          measurement.headingClipped ||
+          measurement.clipped.length ||
+          (width < 1024 && !measurement.sidebarHidden)
+        ) {
+          failures.push(result);
+        }
       }
     }
   } finally {

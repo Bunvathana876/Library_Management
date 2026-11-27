@@ -105,7 +105,7 @@ it('creates an account from the selected book and continues to its confirmation'
 it('opens registration directly and discards a cancelled borrowing intent', async () => {
   await act(async () => root.render(<App />));
   await click('Create Account');
-  expect(dialog().textContent).toContain('Create a Patron Account');
+  expect(dialog().textContent).toContain('Create a library account');
   await click('Cancel', dialog());
   await click('Sign In to Borrow'); await click('Cancel', dialog());
   await click('Sign In'); await authenticate();
