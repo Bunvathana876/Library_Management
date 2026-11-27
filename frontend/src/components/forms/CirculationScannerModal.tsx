@@ -76,7 +76,6 @@ export function CirculationScannerModal({
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStatus, setCameraStatus] = useState('Starting camera…');
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [scannerEngine, setScannerEngine] = useState<'native' | 'zxing' | null>(null);
 
   const [manualCode, setManualCode] = useState('');
   const [scanMessage, setScanMessage] = useState<string>('');
@@ -337,7 +336,7 @@ export function CirculationScannerModal({
           }
 
           const detector = new window.BarcodeDetector({ formats });
-          setScannerEngine('native');
+
           setCameraStatus('Point camera at a book ISBN barcode or CAT / MEM / LOAN QR code.');
 
           let lastTick = 0;
@@ -389,7 +388,7 @@ export function CirculationScannerModal({
         const reader = new BrowserMultiFormatReader(
           hints as Map<import('@zxing/library').DecodeHintType, unknown>,
         );
-        setScannerEngine('zxing');
+
         setCameraStatus('Point camera at a book ISBN barcode or CAT / MEM / LOAN QR code.');
 
         const controls = await reader.decodeFromConstraints(constraints, videoEl, (result) => {
@@ -571,11 +570,7 @@ export function CirculationScannerModal({
                   <ScanLine size={16} aria-hidden="true" />
                   <span>Live Camera Feed</span>
                 </div>
-                {scannerEngine ? (
-                  <span className="badge badge-neutral">
-                    {scannerEngine === 'native' ? 'Native BarcodeDetector' : 'ZXing Fallback'}
-                  </span>
-                ) : null}
+
               </div>
               <div className="isbn-scanner-viewport scanner-viewport-compact">
                 <video ref={videoRef} playsInline muted autoPlay className="isbn-scanner-video" />

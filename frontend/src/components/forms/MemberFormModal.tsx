@@ -133,9 +133,6 @@ export function MemberFormModal({
             <label className="field-label" htmlFor="member-fullname">
               Full name
             </label>
-            <span id="member-fullname-hint" className="field-hint">
-              Enter the member&apos;s full name (up to 120 characters).
-            </span>
             <input
               id="member-fullname"
               name="fullName"
@@ -145,9 +142,9 @@ export function MemberFormModal({
               required
               maxLength={120}
               autoFocus
+              data-dialog-autofocus
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              aria-describedby="member-fullname-hint"
               data-error="member-fullname-error"
               placeholder="Sokha Dara"
             />

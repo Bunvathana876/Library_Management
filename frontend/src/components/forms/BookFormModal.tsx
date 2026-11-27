@@ -9,7 +9,6 @@ import {
 } from 'react';
 import {
   AlertCircle,
-  Barcode,
   Camera,
   CheckCircle2,
   ImageOff,
@@ -589,16 +588,13 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
 
           <section className="isbn-autofill-panel" aria-label="Instant ISBN auto-fill">
             <div className="isbn-panel-header">
-              <div className="isbn-panel-title-wrap">
-                <Barcode size={17} aria-hidden="true" className="isbn-panel-icon" />
-                <div>
-                  <label className="field-label" htmlFor="book-isbn">
-                    Instant ISBN Auto-Fill
-                  </label>
-                  <span id="book-isbn-hint" className="field-hint">
-                    Type, paste, or scan ISBN-10 / ISBN-13 (USB scanners &amp; camera supported).
-                  </span>
-                </div>
+              <div>
+                <label className="field-label" htmlFor="book-isbn">
+                  ISBN Lookup (optional)
+                </label>
+                <span id="book-isbn-hint" className="field-hint">
+                  Type, paste, or scan ISBN-10 / ISBN-13 to populate metadata from Open Library.
+                </span>
               </div>
               {lookupSource && lookupStatus === 'success' ? (
                 <StatusBadge tone="success">Verified via {lookupSource}</StatusBadge>
@@ -750,7 +746,7 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
                         </button>
                       )
                     ) : (
-                      <span className="badge badge-neutral">Using fallback cover</span>
+                      <span className="badge badge-neutral">Typographic cover</span>
                     )}
                   </div>
                 </div>
@@ -762,9 +758,6 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
             <label className="field-label" htmlFor="book-title">
               Book title
             </label>
-            <span id="book-title-hint" className="field-hint">
-              Required, up to 200 characters.
-            </span>
             <input
               id="book-title"
               name="title"
@@ -778,7 +771,6 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
                 setTitle(e.target.value);
                 if (autofilled.title) setAutofilled((prev) => ({ ...prev, title: false }));
               }}
-              aria-describedby="book-title-hint"
               data-error="book-title-error"
               placeholder="Designing Data-Intensive Applications"
             />
@@ -795,9 +787,6 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
             <label className="field-label" htmlFor="book-author">
               Author
             </label>
-            <span id="book-author-hint" className="field-hint">
-              Required, up to 150 characters.
-            </span>
             <input
               id="book-author"
               name="author"
@@ -811,7 +800,6 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
                 setAuthor(e.target.value);
                 if (autofilled.author) setAutofilled((prev) => ({ ...prev, author: false }));
               }}
-              aria-describedby="book-author-hint"
               data-error="book-author-error"
               placeholder="Martin Kleppmann"
             />
@@ -829,9 +817,6 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
               <label className="field-label" htmlFor="book-year">
                 Publication year
               </label>
-              <span id="book-year-hint" className="field-hint">
-                Positive whole year (e.g. 2017).
-              </span>
               <input
                 id="book-year"
                 name="publicationYear"
@@ -849,7 +834,6 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
                     setAutofilled((prev) => ({ ...prev, publicationYear: false }));
                   }
                 }}
-                aria-describedby="book-year-hint"
                 data-error="book-year-error"
               />
               <div
@@ -981,8 +965,7 @@ export function BookFormModal({ open, editingBook, onClose, onSaved }: BookFormM
                 Cover image URL
               </label>
               <span id="book-cover-url-hint" className="field-hint">
-                Automatically populated from Open Library when available. Leave blank to use the
-                default library cover.
+                Automatically populated from Open Library when available. Leave blank to display a typographic title cover.
               </span>
               <input
                 id="book-cover-url"

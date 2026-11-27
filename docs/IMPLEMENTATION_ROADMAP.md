@@ -21,7 +21,7 @@ Scope: Phase 7 only. Preserve UI, data, existing migrations, and business functi
 - [ ] 7.3 Overdue renewal rules and deterministic date tests
 - [ ] 7.4 Unicode-safe, concurrent, reliable notifications
 - [ ] 7.5 Stable member identity and immediate JWT revocation
-- [ ] 7.6 FIFO inventory allocation, limits, locking and PostgreSQL concurrency tests
+- [x] 7.6 FIFO inventory allocation, limits, locking and PostgreSQL concurrency tests
 - [ ] 7.7 Timer isolation, WebP, health polling removal, copy-level gauge
 - [ ] Full backend verify, frontend checks, infrastructure and runtime/UI checks
 - [ ] Phase 7 stabilization report with learning notes and manual tests
@@ -96,3 +96,42 @@ Next: finish 7.2 browser verification, then 7.3 renewal rules. Inspection also c
 - Browser console had no errors; existing unused hero preload warning is tracked under 7.7.
 - Running local frontend handle: exec session 89185; Playwright browser session phase7. Revalidate handles before reuse. No data writes performed during browser checks.
 - Next: staff borrow/scanner browser regression, then finish earlier pending HTTP/migration checks and activation synchronization. Continue Phase 7 only.
+
+
+## Phase 7.1 final verification checkpoint — 2026-11-26
+- Implementation committed at `6907065` on continuation; previous statement that all work was uncommitted is historical.
+- Completed circulation member locking, parent-first loan/hold/copy locking, stale-expiry correction, book mutation locking and member status/deletion protection.
+- Final Maven verify: **87 passed**, zero failures/errors/skips; five real PostgreSQL concurrency tests and three Flyway migration fixture tests included. V1–V9 unchanged.
+- Frontend: **29 passed**, typecheck/build passed. No lint command exists. Compose validation passed.
+- Isolated production-profile stack built and healthy; HTTP smoke, selected-copy browser checkout, keyboard-scanner return and responsive dashboard checks passed. Local backup restore and restart persistence verified.
+- Detailed acceptance boundaries, exact commands, manual camera steps, Git staging list and Spring concepts: [PHASE_7_FINAL_VERIFICATION_REPORT.md](PHASE_7_FINAL_VERIFICATION_REPORT.md).
+- Production remains **NO-GO**. Next: close identity/activation/login-race audit, actual-data migration preflight, camera/device acceptance, and external TLS/secrets/operational gates. 7.7 title-versus-copy gauge and performance items remain pending. No Phase 8 work authorized.
+
+
+## Responsive UI goal — verified, 2026-11-27
+- [x] Inspected current CSS/components and real browser; preserved existing uncommitted Phase 7 reports.
+- [x] Fixed observed 320px overview overflow (351px) and loans header overflow (361px) using shrinkable grid columns, wrapped quick-action labels and compact-screen toolbar wrapping.
+- [x] Improved narrow dialog gutters and short-viewport scrolling without changing APIs or business rules.
+- [x] Checked Overview, Catalog, Loans, Members and Bookshelf at 320/375/768/1024/1440px: no document horizontal overflow after changes. Tables/tab strips retain internal scrolling.
+- [x] Frontend 29 tests, typecheck and production build passed.
+- [x] Completed browser layout sweep: 72 main-page combinations, 120 staff/admin dialog combinations, 20 authentication-dialog combinations, and 10 populated return-history combinations. No horizontal overflow in the final runs. Verified mobile navigation, light/dark screenshots, landscape form scrolling, enlarged text and populated notifications.
+- [x] Fixed additional long-title/category/email overflow, scanner form sizing, enlarged action labels, and notification viewport clipping. Preserved the existing design and circulation behavior.
+- [x] Recorded exact verification scope and remaining physical-device checks in [RESPONSIVE_UI_VERIFICATION.md](RESPONSIVE_UI_VERIFICATION.md).
+- Current live frontend: Vite port 5174, exec session 50527; proxied to isolated staging on 3100. Revalidate handles on resume. Playwright session: responsive. Screenshots in ignored output/playwright/responsive-*.png. Wait for finite animations before capturing screenshots.
+
+
+## Member self-service checkout — verified, 2026-11-27
+- [x] Added visible Create Account and reader Borrow actions in catalog grid/list and book details.
+- [x] Preserved selected-book intent through registration/sign-in and required explicit checkout confirmation; cancellation discards the intent.
+- [x] Added authenticated own-account checkout using existing PostgreSQL locks, borrowing limits, fines and hold ownership; staff API authorization unchanged.
+- [x] Removed other-borrower names from reservation errors and fixed long catalog columns intercepting Borrow clicks.
+- [x] Full backend verify: 93 passed; frontend: 34 passed; typecheck/build passed. Six new PostgreSQL tests and five frontend regressions included.
+- [x] Verified new-account and returning-account flows in Chromium against isolated staging; loans persisted after reload. Fifty size/text combinations passed.
+- Evidence, transaction boundaries, local preview and remaining deployment limits: [MEMBER_SELF_SERVICE_CHECKOUT.md](MEMBER_SELF_SERVICE_CHECKOUT.md).
+
+## Overview screenshot follow-up — 2026-11-27
+- [x] Found internal hero text clipping at 320px/200% text that document-width checks missed; fixed wrapping without redesigning the UI.
+- [x] Adapted overview layout to available page-content width beside the sidebar using container queries with existing media-query fallbacks.
+- [x] Added reusable `scripts/responsive_overview_audit.js`; 20 overview checks passed on source and again on rebuilt local staging, plus eight catalog checks and mobile navigation/account-dialog smoke checks.
+- [x] Frontend 34 tests, typecheck, production build and whitespace check passed. Rebuilt only the isolated frontend at port 3100; database unchanged.
+- Evidence and remaining real-device limits: [RESPONSIVE_UI_VERIFICATION.md](RESPONSIVE_UI_VERIFICATION.md). Existing member checkout changes remain uncommitted and preserved.

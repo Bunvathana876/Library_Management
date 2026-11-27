@@ -1,20 +1,12 @@
 import { useEffect, useId, useMemo, useState, type RefObject } from 'react';
 import {
-  ArrowRight,
   BookOpen,
-  Calendar,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
-  Eye,
-  Layers,
   LayoutGrid,
   List,
   Pencil,
   Plus,
-  RefreshCw,
-  Repeat,
   Search,
   Trash2,
   X,
@@ -48,7 +40,7 @@ type AvailabilityFilter = 'all' | 'available' | 'borrowed';
 type SortOption = 'title-asc' | 'title-desc' | 'year-desc' | 'year-asc';
 type ViewMode = 'grid' | 'table';
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 12;
 
 function getSortLabel(sortBy: SortOption): string {
   switch (sortBy) {
@@ -120,7 +112,6 @@ export function BooksPage({
 
   const totalBooks = books.length;
   const availableCount = useMemo(() => books.filter((book) => book.available).length, [books]);
-  const checkedOutCount = totalBooks - availableCount;
 
   const availableYears = useMemo(() => {
     const years = new Set<number>();
@@ -239,71 +230,16 @@ export function BooksPage({
         {statusAnnouncement}
       </p>
 
-      {/* Catalog Hero Banner */}
-      <section className="catalog-hero" aria-label="Library catalog summary">
-        <div className="catalog-hero-content">
-          <div className="catalog-hero-eyebrow">
-            <BookOpen size={15} aria-hidden="true" />
-            <span>Library Catalog</span>
-          </div>
-
-          <h2 className="catalog-hero-title">Explore Our Collection</h2>
-          <p className="catalog-hero-desc">
-            Browse, search, and discover books available in the library
-          </p>
-
-          <div className="catalog-hero-stats" aria-label="Catalog availability metrics">
-            <div className="catalog-hero-stat">
-              <span className="catalog-hero-stat-icon" aria-hidden="true">
-                <BookOpen size={16} />
-              </span>
-              <div className="catalog-hero-stat-text">
-                <strong className="catalog-hero-stat-value tabular-nums">{totalBooks}</strong>
-                <span className="catalog-hero-stat-label">Total Books</span>
-              </div>
-            </div>
-
-            <span className="catalog-hero-stat-divider" aria-hidden="true" />
-
-            <div className="catalog-hero-stat">
-              <span className="catalog-hero-stat-icon" aria-hidden="true">
-                <Layers size={16} />
-              </span>
-              <div className="catalog-hero-stat-text">
-                <strong className="catalog-hero-stat-value tabular-nums">{availableCount}</strong>
-                <span className="catalog-hero-stat-label">Available</span>
-              </div>
-            </div>
-
-            <span className="catalog-hero-stat-divider" aria-hidden="true" />
-
-            <div className="catalog-hero-stat">
-              <span className="catalog-hero-stat-icon" aria-hidden="true">
-                <RefreshCw size={16} />
-              </span>
-              <div className="catalog-hero-stat-text">
-                <strong className="catalog-hero-stat-value tabular-nums">{checkedOutCount}</strong>
-                <span className="catalog-hero-stat-label">Checked Out</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="catalog-hero-artwork" aria-hidden="true">
-          <img
-            src="/images/catalog/catalog-hero.webp"
-            alt=""
-            width={352}
-            height={221}
-            fetchPriority="high"
-            decoding="async"
-            className="catalog-hero-img"
-          />
+      <section className="page-intro" aria-label="Library catalog summary">
+        <div>
+          <div className="eyebrow">The collection</div>
+          <h2>Find your next read.</h2>
+          <p>{loading && books.length === 0 ? 'Loading the collection…' : errorMsg && books.length === 0 ? 'The collection is temporarily unavailable.' : `${totalBooks} titles to explore · ${availableCount} with copies available to borrow`}</p>
         </div>
       </section>
 
       {/* Search & Filter Toolbar */}
-      <section className="card catalog-toolbar" aria-label="Catalog search and filters">
+      <section className="catalog-toolbar" aria-label="Catalog search and filters">
         <div className="catalog-search-wrap">
           <Search size={16} className="catalog-search-icon" aria-hidden="true" />
           <input
@@ -312,7 +248,7 @@ export function BooksPage({
             className="input-control catalog-search-input"
             enterKeyHint="search"
             aria-label="Search books by title, author, publisher, ISBN, or catalog ID"
-            placeholder="Search by title, author, publisher, ISBN, or CAT-ID"
+            placeholder="Search by title, author or ISBN"
             value={searchQuery}
             onChange={(e) => {
               onSearchChange(e.target.value);
@@ -351,11 +287,10 @@ export function BooksPage({
                 setStatusAnnouncement(`Filtered catalog status to ${next}.`);
               }}
             >
-              <option value="all">All Status</option>
+              <option value="all">All availability</option>
               <option value="available">Available</option>
-              <option value="borrowed">Borrowed</option>
+              <option value="borrowed">Unavailable</option>
             </select>
-            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-select-wrap">
@@ -385,7 +320,6 @@ export function BooksPage({
                 </option>
               ))}
             </select>
-            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-select-wrap">
@@ -415,7 +349,6 @@ export function BooksPage({
                 </option>
               ))}
             </select>
-            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-select-wrap">
@@ -439,7 +372,6 @@ export function BooksPage({
               <option value="year-desc">Newest publication year</option>
               <option value="year-asc">Oldest publication year</option>
             </select>
-            <ChevronDown size={15} className="catalog-select-chevron" aria-hidden="true" />
           </div>
 
           <div className="catalog-view-toggle" role="group" aria-label="Catalog view mode">
@@ -543,13 +475,13 @@ export function BooksPage({
                 : 'catalog-status-badge catalog-status-borrowed';
             const statusLabel = book.available
               ? totalCopies > 1
-                ? `${availableCopies}/${totalCopies} Avail`
+                ? `${availableCopies} of ${totalCopies} available`
                 : 'Available'
               : book.reservedForPickup
                 ? 'Held at Desk'
                 : totalCopies > 1
-                  ? `0/${totalCopies} Borrowed`
-                  : 'Borrowed';
+                  ? 'No copies available'
+                  : 'Unavailable';
             return (
               <article key={book.id} className="catalog-card">
                 <div className="catalog-card-main">
@@ -558,69 +490,29 @@ export function BooksPage({
                       book={book}
                       width={124}
                       height={163}
-                      loading={idx >= 4 ? 'lazy' : undefined}
+                      loading={idx >= 4 ? 'lazy' : 'eager'}
                       className="catalog-card-cover-img"
                     />
                   </div>
 
                   <div className="catalog-card-info">
-                    <div className="catalog-card-top">
-                      <span className="catalog-id-badge mono">{formatCallNumber(book.id)}</span>
-                      {book.category ? (
-                        <span className="badge badge-neutral">{book.category}</span>
-                      ) : null}
-                      <span className={statusClass}>
-                        <span className="catalog-status-dot" aria-hidden="true" />
-                        {statusLabel}
-                      </span>
-                    </div>
-
+                    <div className="catalog-category">{book.category || 'General collection'}</div>
                     <div className="catalog-card-heading">
                       <h3 className="catalog-card-title">{book.title}</h3>
                       <p className="catalog-card-author">
                         {book.author}
-                        {book.publisher ? ` · ${book.publisher}` : ''}
                       </p>
                     </div>
 
                     <div className="catalog-card-meta">
-                      <span className="catalog-meta-item">
-                        <Calendar size={14} className="catalog-meta-icon" aria-hidden="true" />
-                        <span className="tabular-nums">{book.publicationYear}</span>
-                      </span>
-                      <span className="catalog-meta-sep" aria-hidden="true" />
-                      <span className="catalog-meta-item">
-                        <Layers size={14} className="catalog-meta-icon" aria-hidden="true" />
-                        <span className="mono">
-                          {book.isbn ? `ISBN ${book.isbn}` : `${totalCopies} ${totalCopies === 1 ? 'copy' : 'copies'}`}
-                          {book.shelfLocation ? ` · Shelf ${book.shelfLocation}` : ''}
-                        </span>
-                      </span>
-                      {holdCount > 0 ? (
-                        <>
-                          <span className="catalog-meta-sep" aria-hidden="true" />
-                          <span className="catalog-meta-item">
-                            <Clock size={14} className="catalog-meta-icon" aria-hidden="true" />
-                            <span className="tabular-nums">
-                              {holdCount} {holdCount === 1 ? 'hold' : 'holds'}
-                            </span>
-                          </span>
-                        </>
-                      ) : null}
+                      <span className={statusClass}><span className="catalog-status-dot" aria-hidden="true" />{statusLabel}</span>
+                      {holdCount > 0 ? <span>{holdCount} {holdCount === 1 ? 'reservation' : 'reservations'}</span> : null}
                     </div>
                   </div>
                 </div>
 
                 <div className="catalog-card-actions">
-                  <button
-                    type="button"
-                    className="catalog-inspect-btn"
-                    aria-label={`Inspect ${book.title}`}
-                    onClick={() => onInspectBook(book.id)}
-                  >
-                    <Eye size={15} aria-hidden="true" />
-                    <span>Inspect</span>
-                  </button>
+                  <button type="button" className="catalog-details-btn" aria-label={`Details: ${book.title}`} onClick={() => onInspectBook(book.id)}>Details</button>
 
                   <div className="catalog-card-actions-right">
                     {!book.available && isAuthenticated && onPlaceHold ? (
@@ -643,10 +535,20 @@ export function BooksPage({
                           disabled={holdingBookId === book.id}
                           onClick={() => void handlePlaceHold(book)}
                         >
-                          <Clock size={14} aria-hidden="true" />
                           <span>{holdingBookId === book.id ? 'Placing…' : 'Place Hold'}</span>
                         </button>
                       )
+                    ) : null}
+
+                    {!isStaff && (book.available || myHold?.status === 'READY_FOR_PICKUP') ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        aria-label={`${isAuthenticated ? 'Borrow' : 'Sign in to borrow'} ${book.title}`}
+                        onClick={() => onBorrowBook(book)}
+                      >
+                        <span>{isAuthenticated ? 'Borrow' : 'Sign In to Borrow'}</span>
+                      </button>
                     ) : null}
 
                     {isStaff ? (
@@ -658,7 +560,6 @@ export function BooksPage({
                             aria-label={`Borrow ${book.title}`}
                             onClick={() => onBorrowBook(book)}
                           >
-                            <Repeat size={14} aria-hidden="true" />
                             <span>{book.reservedForPickup ? 'Pickup' : 'Borrow'}</span>
                           </button>
                         ) : null}
@@ -682,16 +583,6 @@ export function BooksPage({
                         </button>
                       </div>
                     ) : null}
-
-                    <button
-                      type="button"
-                      className="catalog-details-btn"
-                      aria-label={`Details: ${book.title}`}
-                      onClick={() => onInspectBook(book.id)}
-                    >
-                      <span>Details</span>
-                      <ArrowRight size={14} aria-hidden="true" />
-                    </button>
                   </div>
                 </div>
               </article>
@@ -699,13 +590,7 @@ export function BooksPage({
           })}
         </section>
       ) : (
-        <section className="card" aria-label="Books catalog list table">
-          <div className="card-header">
-            <div>
-              <h3 className="card-title">Catalog Table</h3>
-              <p className="card-subtitle">Tabular view of matching catalog records</p>
-            </div>
-          </div>
+        <section className="ledger-section" aria-label="Books catalog list table">
           <div
             tabIndex={0}
             role="region"
@@ -768,7 +653,7 @@ export function BooksPage({
                             ? 'Available'
                             : book.reservedForPickup
                               ? 'Held at Desk'
-                              : 'Borrowed'}
+                              : 'Unavailable'}
                         </span>
                       </td>
                       <td>
@@ -776,10 +661,10 @@ export function BooksPage({
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm"
+                            aria-label={`Details: ${book.title}`}
                             onClick={() => onInspectBook(book.id)}
                           >
-                            <Eye size={14} aria-hidden="true" />
-                            <span>Inspect</span>
+                            <span>Details</span>
                           </button>
                           {!book.available && isAuthenticated && onPlaceHold ? (
                             myHold ? (
@@ -799,13 +684,14 @@ export function BooksPage({
                               </button>
                             )
                           ) : null}
-                          {isStaff && (book.available || book.reservedForPickup) ? (
+                          {book.available || (isStaff && book.reservedForPickup) || myHold?.status === 'READY_FOR_PICKUP' ? (
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
+                              aria-label={`${isAuthenticated ? 'Borrow' : 'Sign in to borrow'} ${book.title}`}
                               onClick={() => onBorrowBook(book)}
                             >
-                              {book.reservedForPickup ? 'Pickup' : 'Borrow'}
+                              {!isAuthenticated ? 'Sign In to Borrow' : isStaff && book.reservedForPickup ? 'Pickup' : 'Borrow'}
                             </button>
                           ) : null}
                           {isStaff ? (

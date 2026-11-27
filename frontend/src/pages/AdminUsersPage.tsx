@@ -1,9 +1,8 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
-  Ban,
   CalendarClock,
-  CheckCircle2,
   Copy,
   Eye,
   EyeOff,
@@ -12,13 +11,13 @@ import {
   LogIn,
   Play,
   RefreshCw,
-  ShieldCheck,
   Wand2,
 } from 'lucide-react';
 import { adminApi } from '@/api/adminApi';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorSummary, type SummaryErrorItem } from '@/components/ui/ErrorSummary';
 import { ModalDialog } from '@/components/ui/ModalDialog';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -37,6 +36,7 @@ function generateStrongPassword(length = 16): string {
 export function AdminUsersPage() {
   const { user, isAuthenticated, isAdmin, openSignInModal } = useAuth();
   const { notify } = useToast();
+  const { confirm, confirmationDialog } = useConfirmation();
   const formRef = useRef<HTMLFormElement>(null);
   const matrixCaptionId = useId();
 
@@ -97,8 +97,8 @@ export function AdminUsersPage() {
         title={isAuthenticated ? 'Administrator role required' : 'Admin sign-in required'}
         description={
           isAuthenticated
-            ? 'Only ADMIN accounts can manage staff and patron login accounts.'
-            : 'Sign in with your administrator account to manage Librarian and Member login credentials.'
+            ? 'Only administrator accounts can manage staff and patron login accounts.'
+            : 'Sign in with your administrator account to manage librarian and member login credentials.'
         }
         action={
           !isAuthenticated ? (
@@ -175,6 +175,12 @@ export function AdminUsersPage() {
   };
 
   const handleToggleEnabled = async (acc: AccountResponse) => {
+    if (!await confirm({
+      title: acc.enabled ? 'Disable account?' : 'Enable account?',
+      message: `${acc.enabled ? 'Prevent' : 'Restore'} sign-in for ${acc.email}?`,
+      confirmLabel: acc.enabled ? 'Disable account' : 'Enable account',
+      variant: acc.enabled ? 'danger' : 'primary',
+    })) return;
     setBusyAccountId(acc.id);
     try {
       const updated = await adminApi.updateAccountStatus(acc.id, !acc.enabled);
@@ -197,6 +203,12 @@ export function AdminUsersPage() {
 
   const handleRoleChange = async (acc: AccountResponse, nextRole: 'LIBRARIAN' | 'MEMBER') => {
     if (acc.role === nextRole) return;
+    if (!await confirm({
+      title: 'Change account role?',
+      message: `Change ${acc.email} from ${acc.role} to ${nextRole}? This changes their access to library operations.`,
+      confirmLabel: 'Change role',
+      variant: 'primary',
+    })) return;
     setBusyAccountId(acc.id);
     try {
       const updated = await adminApi.updateAccountRole(acc.id, nextRole);
@@ -244,6 +256,12 @@ export function AdminUsersPage() {
   };
 
   const handleRunJobs = async () => {
+    if (!await confirm({
+      title: 'Run circulation maintenance?',
+      message: 'Expire eligible holds and send due-soon and overdue notifications now.',
+      confirmLabel: 'Run jobs',
+      variant: 'primary',
+    })) return;
     setRunningJobs(true);
     try {
       const result = await adminApi.runReminderJobs();
@@ -281,19 +299,157 @@ export function AdminUsersPage() {
     }
   };
 
-  return (
-    <div className="two-col-grid">
-      <div className="overview-side-stack">
-        <section className="card card-padded form-stack" aria-labelledby="create-user-heading">
-          <div>
-            <h2 id="create-user-heading" className="card-title">
-              Create Login Account
-            </h2>
-            <p className="card-subtitle">
-              Create login credentials for librarians and library members
-            </p>
-          </div>
+  const enabledCount = accounts.filter((a) => a.enabled).length;
 
+  return (
+    <div className="admin-workspace">
+      {confirmationDialog}
+
+      <section className="page-intro" aria-label="Administration summary">
+        <div>
+          <div className="eyebrow">Administration</div>
+          <h2>Staff &amp; system accounts</h2>
+          <p>
+            {loadingAccounts && accounts.length === 0
+              ? 'Loading system login accounts…'
+              : `${accounts.length} login ${accounts.length === 1 ? 'account' : 'accounts'} · ${enabledCount} enabled`}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => void fetchAccounts()}
+          disabled={loadingAccounts}
+          aria-label="Refresh accounts directory"
+        >
+          <RefreshCw size={14} className={loadingAccounts ? 'spin-animation' : undefined} aria-hidden="true" />
+          <span>Refresh</span>
+        </button>
+      </section>
+
+      <section className="ledger-section admin-directory" aria-label="System accounts directory">
+        {accountsError ? (
+          <div className="alert alert-danger alert-row" role="alert">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={16} aria-hidden="true" className="alert-icon" />
+              <span>{accountsError}</span>
+            </div>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void fetchAccounts()}>
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {loadingAccounts && accounts.length === 0 ? (
+          <TableSkeleton rows={3} label="Loading system accounts" />
+        ) : accounts.length === 0 && !accountsError ? (
+          <p className="field-hint">
+            No system accounts found. Newly created accounts will appear here.
+          </p>
+        ) : accounts.length > 0 ? (
+          <div className="table-wrapper" role="region" aria-label="Login accounts" tabIndex={0}>
+            <table
+              className="data-table"
+              style={{
+                ['--label-2' as string]: '"Role"',
+                ['--label-3' as string]: '"Actions"',
+              }}
+            >
+              <caption>Library login accounts and access controls</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Account</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map((acc) => {
+                  const isSelf = user?.email.toLowerCase() === acc.email.toLowerCase();
+                  const isAccountAdmin = acc.role === 'ADMIN';
+                  const busy = busyAccountId === acc.id;
+                  return (
+                    <tr key={acc.id}>
+                      <th scope="row">
+                        <div>
+                          <div className="session-account-email">{acc.email}</div>
+                          <div className="mono table-subline">
+                            Account #{acc.id} · {acc.enabled ? 'Enabled' : 'Disabled'}
+                            {isSelf ? ' · You' : ''}
+                          </div>
+                        </div>
+                      </th>
+
+                      <td>
+                        {isAccountAdmin ? (
+                          <StatusBadge tone="warning" dot={false}>
+                            Administrator
+                          </StatusBadge>
+                        ) : (
+                          <select
+                            className="select-control account-role-select"
+                            aria-label={`Role for ${acc.email}`}
+                            value={acc.role}
+                            disabled={busy}
+                            onChange={(e) =>
+                              void handleRoleChange(acc, e.target.value as 'LIBRARIAN' | 'MEMBER')
+                            }
+                          >
+                            <option value="LIBRARIAN">Librarian</option>
+                            <option value="MEMBER">Member</option>
+                          </select>
+                        )}
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            disabled={busy || isSelf}
+                            title={isSelf ? 'Cannot disable your own active account' : undefined}
+                            onClick={() => void handleToggleEnabled(acc)}
+                          >
+                            {acc.enabled ? 'Disable' : 'Enable'}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon icon-square-btn"
+                            disabled={busy}
+                            onClick={() => {
+                              setResetTarget(acc);
+                              setResetPasswordVal('');
+                              setShowResetPassword(false);
+                            }}
+                            aria-label={`Reset password for ${acc.email}`}
+                            title="Reset password"
+                          >
+                            <KeyRound size={14} aria-hidden="true" />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon icon-square-btn"
+                            onClick={() => void handleCopyEmail(acc.email)}
+                            aria-label={`Copy ${acc.email}`}
+                            title="Copy email"
+                          >
+                            <Copy size={14} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
+
+      <div className="admin-settings-grid">
+        <details className="card admin-disclosure">
+          <summary>Create login account</summary>
           <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
             <ErrorSummary errors={summaryErrors} />
 
@@ -309,7 +465,7 @@ export function AdminUsersPage() {
                 Account email
               </label>
               <span id="admin-user-email-hint" className="field-hint">
-                Must be a unique email address for signing in
+                Unique email address used for signing in
               </span>
               <input
                 id="admin-user-email"
@@ -352,8 +508,7 @@ export function AdminUsersPage() {
                 </button>
               </div>
               <ul id="admin-user-password-rules" className="rules-list">
-                <li>Length between 12 and 72 characters ({password.length}/72 entered)</li>
-                <li>Passwords are encrypted before storage</li>
+                <li>12 to 72 characters ({password.length}/72 entered)</li>
               </ul>
               <div className="input-with-action">
                 <input
@@ -406,45 +561,16 @@ export function AdminUsersPage() {
             </div>
 
             <div className="field">
-              <span className="field-label">Assign role</span>
-              <span className="field-hint">
-                New accounts can be assigned the Librarian or Member role.
-              </span>
-              <div className="role-card-grid" role="radiogroup" aria-label="Account role">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={role === 'LIBRARIAN'}
-                  className="role-choice-card"
-                  data-selected={role === 'LIBRARIAN'}
-                  onClick={() => setRole('LIBRARIAN')}
-                >
-                  <span className="role-choice-title">
-                    <ShieldCheck size={16} aria-hidden="true" />
-                    LIBRARIAN
-                  </span>
-                  <span className="field-hint">
-                    Manage books, copies, members, fines, and loans.
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={role === 'MEMBER'}
-                  className="role-choice-card"
-                  data-selected={role === 'MEMBER'}
-                  onClick={() => setRole('MEMBER')}
-                >
-                  <span className="role-choice-title">
-                    <KeyRound size={16} aria-hidden="true" />
-                    MEMBER
-                  </span>
-                  <span className="field-hint">
-                    My Bookshelf access for loans, renewals, holds, and notifications.
-                  </span>
-                </button>
-              </div>
+              <label className="field-label" htmlFor="new-account-role">Assign role</label>
+              <select
+                id="new-account-role"
+                className="select-control"
+                value={role}
+                onChange={(event) => setRole(event.target.value as 'LIBRARIAN' | 'MEMBER')}
+              >
+                <option value="LIBRARIAN">Librarian — circulation and catalog</option>
+                <option value="MEMBER">Member — personal bookshelf</option>
+              </select>
             </div>
 
             {role === 'MEMBER' ? (
@@ -453,7 +579,7 @@ export function AdminUsersPage() {
                   Patron full name (optional)
                 </label>
                 <span id="admin-user-fullname-hint" className="field-hint">
-                  Links this login to a patron borrower card (auto-derived from email if left blank).
+                  Links this login to a patron borrower card (derived from email if left blank).
                 </span>
                 <input
                   id="admin-user-fullname"
@@ -471,73 +597,56 @@ export function AdminUsersPage() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
               <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {submitting ? 'Creating Account…' : `Create ${role} Account`}
+                {submitting
+                  ? 'Creating Account…'
+                  : `Create ${role === 'LIBRARIAN' ? 'Librarian' : 'Member'} Account`}
               </button>
             </div>
           </form>
-        </section>
+        </details>
 
-        <section className="card card-padded form-stack" aria-labelledby="scheduled-jobs-heading">
-          <div className="toolbar">
-            <div>
-              <h3 id="scheduled-jobs-heading" className="card-title">
-                Circulation Policy &amp; Scheduled Jobs
-              </h3>
-              <p className="card-subtitle">
-                Nightly hold expiration (02:00) and due-soon/overdue notifications (08:00)
-              </p>
+        <details className="card admin-disclosure">
+          <summary>Circulation maintenance</summary>
+          <div className="form-stack">
+            <div className="toolbar">
+              <div>
+                <h3 id="scheduled-jobs-heading" className="card-title">
+                  Scheduled Reminder &amp; Hold Jobs
+                </h3>
+                <p className="card-subtitle">
+                  Expire unclaimed pickup holds and send due-soon or overdue reminders.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={runningJobs}
+                onClick={() => void handleRunJobs()}
+              >
+                <Play size={14} aria-hidden="true" />
+                <span>{runningJobs ? 'Running…' : 'Run Jobs Now'}</span>
+              </button>
             </div>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={runningJobs}
-              onClick={() => void handleRunJobs()}
-            >
-              <Play size={14} aria-hidden="true" />
-              <span>{runningJobs ? 'Running…' : 'Run Jobs Now'}</span>
-            </button>
+
+            <p className="field-hint">
+              Loan limits, fine rates, and reminder schedules follow server configuration. Active standing rules appear directly on member records.
+            </p>
+
+            {lastJobResult ? (
+              <div className="alert alert-info">
+                <CalendarClock size={16} aria-hidden="true" className="alert-icon" />
+                <span>
+                  Last manual run: <strong>{lastJobResult.expiredHolds}</strong> expired holds ·{' '}
+                  <strong>{lastJobResult.dueSoonNotifications}</strong> due-soon alerts ·{' '}
+                  <strong>{lastJobResult.overdueNotifications}</strong> overdue reminders.
+                </span>
+              </div>
+            ) : null}
           </div>
+        </details>
 
-          <div className="policy-grid">
-            <div className="policy-chip">
-              <span className="table-subline">Max Active Loans</span>
-              <strong className="tabular-nums">5 books / member</strong>
-            </div>
-            <div className="policy-chip">
-              <span className="table-subline">Daily Overdue Fine</span>
-              <strong className="tabular-nums">$0.50 / day</strong>
-            </div>
-            <div className="policy-chip">
-              <span className="table-subline">Fine Block Limit</span>
-              <strong className="tabular-nums">$10.00 unpaid</strong>
-            </div>
-            <div className="policy-chip">
-              <span className="table-subline">Due-Soon Window</span>
-              <strong className="tabular-nums">2 days ahead</strong>
-            </div>
-          </div>
-
-          {lastJobResult ? (
-            <div className="alert alert-info">
-              <CalendarClock size={16} aria-hidden="true" className="alert-icon" />
-              <span>
-                Last manual run: <strong>{lastJobResult.expiredHolds}</strong> expired holds ·{' '}
-                <strong>{lastJobResult.dueSoonNotifications}</strong> due-soon alerts ·{' '}
-                <strong>{lastJobResult.overdueNotifications}</strong> overdue reminders.
-              </span>
-            </div>
-          ) : null}
-        </section>
-      </div>
-
-      <div className="overview-side-stack">
-        <section className="card" aria-label="Spring Security role permissions matrix">
-          <div className="card-header">
-            <div>
-              <h3 className="card-title">Role Permissions Matrix</h3>
-              <p className="card-subtitle">Permissions enforced for each account role</p>
-            </div>
-          </div>
+        <details className="card admin-disclosure admin-disclosure-wide">
+          <summary>Role permissions</summary>
           <div
             tabIndex={0}
             role="region"
@@ -551,176 +660,43 @@ export function AdminUsersPage() {
                   <th scope="col">Role</th>
                   <th scope="col">Catalog &amp; Holds</th>
                   <th scope="col">Self-Service</th>
-                  <th scope="col">Desk Ops</th>
-                  <th scope="col">Users</th>
+                  <th scope="col">Circulation Desk</th>
+                  <th scope="col">Accounts</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <th scope="row">Guest</th>
-                  <td>Browse / Sign Up</td>
-                  <td>No</td>
-                  <td>No</td>
-                  <td>No</td>
+                  <td>Browse &amp; sign up</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
                 </tr>
                 <tr>
-                  <th scope="row">MEMBER</th>
-                  <td>Yes</td>
+                  <th scope="row">Member</th>
+                  <td>Browse &amp; reserve</td>
                   <td>My Bookshelf</td>
-                  <td>No</td>
-                  <td>No</td>
+                  <td>—</td>
+                  <td>—</td>
                 </tr>
                 <tr>
-                  <th scope="row">LIBRARIAN</th>
-                  <td>Yes</td>
+                  <th scope="row">Librarian</th>
+                  <td>Full catalog &amp; copies</td>
                   <td>My Bookshelf</td>
-                  <td>Full Access</td>
-                  <td>No</td>
+                  <td>Loans, holds &amp; fines</td>
+                  <td>—</td>
                 </tr>
                 <tr>
-                  <th scope="row">ADMIN</th>
-                  <td>Yes</td>
+                  <th scope="row">Administrator</th>
+                  <td>Full catalog &amp; copies</td>
                   <td>My Bookshelf</td>
-                  <td>Full Access</td>
-                  <td>Yes</td>
+                  <td>Loans, holds &amp; fines</td>
+                  <td>Staff &amp; accounts</td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </section>
-
-        <section className="card card-padded form-stack" aria-labelledby="session-accounts-heading">
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0 }}>
-            <div>
-              <h3 id="session-accounts-heading" className="card-title">
-                System Accounts Directory
-              </h3>
-              <p className="card-subtitle">Manage login status, roles, and password resets</p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
-                {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
-              </span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-icon icon-square-btn"
-                onClick={() => void fetchAccounts()}
-                disabled={loadingAccounts}
-                aria-label="Refresh accounts directory"
-                title="Refresh directory"
-              >
-                <RefreshCw size={14} className={loadingAccounts ? 'spin-animation' : undefined} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-
-          {accountsError ? (
-            <div className="alert alert-danger" role="alert" style={{ fontSize: '0.85rem' }}>
-              <AlertCircle size={16} aria-hidden="true" className="alert-icon" />
-              <span>{accountsError}</span>
-            </div>
-          ) : null}
-
-          {loadingAccounts && accounts.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-              Loading system accounts…
-            </p>
-          ) : accounts.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-              No system accounts found. Newly created accounts will appear here.
-            </p>
-          ) : (
-            <div className="form-stack" style={{ gap: '0.6rem', maxHeight: '420px', overflowY: 'auto' }}>
-              {accounts.map((acc) => {
-                const isSelf = user?.email.toLowerCase() === acc.email.toLowerCase();
-                const isAccountAdmin = acc.role === 'ADMIN';
-                const busy = busyAccountId === acc.id;
-                return (
-                  <div key={acc.id} className="session-account-row">
-                    <div className="session-account-info">
-                      {acc.enabled ? (
-                        <CheckCircle2
-                          size={16}
-                          aria-hidden="true"
-                          style={{ color: 'var(--success)', flexShrink: 0 }}
-                        />
-                      ) : (
-                        <Ban
-                          size={16}
-                          aria-hidden="true"
-                          style={{ color: 'var(--danger)', flexShrink: 0 }}
-                        />
-                      )}
-                      <div style={{ minWidth: 0 }}>
-                        <div className="session-account-email">{acc.email}</div>
-                        <div className="mono table-subline">
-                          Account #{acc.id} · {acc.enabled ? 'Enabled' : 'Disabled'}
-                          {isSelf ? ' · You' : ''}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="row-actions">
-                      {isAccountAdmin ? (
-                        <StatusBadge tone="warning" dot={false}>
-                          ADMIN
-                        </StatusBadge>
-                      ) : (
-                        <select
-                          className="select-control account-role-select"
-                          aria-label={`Role for ${acc.email}`}
-                          value={acc.role}
-                          disabled={busy}
-                          onChange={(e) =>
-                            void handleRoleChange(acc, e.target.value as 'LIBRARIAN' | 'MEMBER')
-                          }
-                        >
-                          <option value="LIBRARIAN">LIBRARIAN</option>
-                          <option value="MEMBER">MEMBER</option>
-                        </select>
-                      )}
-
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        disabled={busy || isSelf}
-                        title={isSelf ? 'Cannot disable your own active account' : undefined}
-                        onClick={() => void handleToggleEnabled(acc)}
-                      >
-                        {acc.enabled ? 'Disable' : 'Enable'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon icon-square-btn"
-                        disabled={busy}
-                        onClick={() => {
-                          setResetTarget(acc);
-                          setResetPasswordVal('');
-                          setShowResetPassword(false);
-                        }}
-                        aria-label={`Reset password for ${acc.email}`}
-                        title="Reset password"
-                      >
-                        <KeyRound size={14} aria-hidden="true" />
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon icon-square-btn"
-                        onClick={() => void handleCopyEmail(acc.email)}
-                        aria-label={`Copy ${acc.email}`}
-                        title="Copy email"
-                      >
-                        <Copy size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        </details>
       </div>
 
       <ModalDialog
@@ -731,6 +707,16 @@ export function AdminUsersPage() {
         subtitle={resetTarget ? `Set a new password for ${resetTarget.email}` : undefined}
       >
         <form className="form-stack" onSubmit={handleResetPasswordSubmit}>
+          <input
+            type="email"
+            name="username"
+            autoComplete="username"
+            value={resetTarget?.email ?? ''}
+            readOnly
+            tabIndex={-1}
+            aria-hidden="true"
+            className="visually-hidden"
+          />
           <div className="modal-body form-stack">
             <div className="field">
               <div className="field-label-row">

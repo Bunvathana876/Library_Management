@@ -2,10 +2,10 @@ import { useId, useRef, useState } from 'react';
 import {
   AlertCircle,
   Bell,
+  BookCheck,
   CalendarClock,
   CheckCheck,
   Receipt,
-  Sparkles,
 } from 'lucide-react';
 import type { NotificationItem, NotificationType } from '@/types/api';
 
@@ -22,7 +22,7 @@ interface NotificationBellProps {
 function getTypeIcon(type: NotificationType) {
   switch (type) {
     case 'HOLD_READY':
-      return <Sparkles size={15} aria-hidden="true" style={{ color: 'var(--success)' }} />;
+      return <BookCheck size={15} aria-hidden="true" style={{ color: 'var(--success)' }} />;
     case 'FINE_ASSESSED':
     case 'OVERDUE':
       return <Receipt size={15} aria-hidden="true" style={{ color: 'var(--danger)' }} />;

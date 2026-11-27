@@ -1,11 +1,9 @@
 import { useId, useMemo, useState } from 'react';
 import {
-  History,
   Lock,
   LogIn,
   Pencil,
   QrCode,
-  Repeat,
   Search,
   UserPlus,
   Users,
@@ -42,6 +40,7 @@ export function MembersPage({
   const { isAuthenticated, isStaff, openSignInModal } = useAuth();
   const tableCaptionId = useId();
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
   const [qrMember, setQrMember] = useState<Member | null>(null);
 
   const loanStatsByMember = useMemo(() => {
@@ -55,10 +54,22 @@ export function MembersPage({
     return map;
   }, [activeLoans]);
 
+  const activeMemberCount = useMemo(
+    () => members.filter((m) => m.active !== false).length,
+    [members],
+  );
+
   const filteredMembers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return members;
-    return members.filter(
+    const source = members.filter(
+      (member) =>
+        status === 'all' ||
+        (status === 'active' && member.active !== false) ||
+        (status === 'inactive' && member.active === false) ||
+        (status === 'blocked' && member.borrowingBlocked),
+    );
+    if (!q) return source;
+    return source.filter(
       (m) =>
         m.fullName.toLowerCase().includes(q) ||
         m.email.toLowerCase().includes(q) ||
@@ -66,7 +77,7 @@ export function MembersPage({
         String(m.id).includes(q) ||
         formatMemberCardCode(m.id).toLowerCase().includes(q),
     );
-  }, [members, search]);
+  }, [members, search, status]);
 
   if (!isStaff) {
     return (
@@ -75,8 +86,8 @@ export function MembersPage({
         title={isAuthenticated ? 'Staff permissions required' : 'Sign in to view Members'}
         description={
           isAuthenticated
-            ? 'Your current role cannot access the member directory. Sign in as LIBRARIAN or ADMIN.'
-            : 'Sign in with a LIBRARIAN or ADMIN account to browse registered borrowers and issue library memberships.'
+            ? 'Your current role cannot access the member directory. Sign in as a librarian or administrator.'
+            : 'Sign in with a librarian or administrator account to browse registered borrowers and issue library memberships.'
         }
         action={
           !isAuthenticated ? (
@@ -92,7 +103,19 @@ export function MembersPage({
 
   return (
     <>
-      <section className="card card-padded toolbar" aria-label="Member directory controls">
+      <section className="page-intro" aria-label="Patron directory summary">
+        <div>
+          <div className="eyebrow">Patron directory</div>
+          <h2>Registered borrowers</h2>
+          <p>
+            {loading && members.length === 0
+              ? 'Loading registered borrowers…'
+              : `${members.length} registered · ${activeMemberCount} active accounts`}
+          </p>
+        </div>
+      </section>
+
+      <section className="toolbar" aria-label="Member directory controls">
         <div className="search-input-wrap">
           <Search size={16} className="search-input-icon" aria-hidden="true" />
           <input
@@ -100,7 +123,7 @@ export function MembersPage({
             className="input-control"
             enterKeyHint="search"
             aria-label="Search members by name, email, phone, or card ID"
-            placeholder="Search by name, email, phone, or MEM-ID"
+            placeholder="Name, email, phone, or ID"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -115,23 +138,44 @@ export function MembersPage({
             </button>
           ) : null}
         </div>
+        <select
+          className="select-control toolbar-select"
+          aria-label="Filter members by status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="blocked">Borrowing blocked</option>
+        </select>
       </section>
 
       {loading && members.length === 0 ? (
         <TableSkeleton rows={4} label="Loading registered members" />
       ) : filteredMembers.length === 0 ? (
         <EmptyState
+          flat
           icon={<Users size={22} />}
-          title={search ? 'No matching members' : 'No members registered yet'}
+          title={search || status !== 'all' ? 'No matching members' : 'No members registered yet'}
           description={
-            search
-              ? `No member records matched "${search}".`
+            search || status !== 'all'
+              ? search
+                ? `No member records matched "${search}".`
+                : 'No members match the selected status filter.'
               : 'Register your first borrower to start issuing book loans.'
           }
           action={
-            search ? (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSearch('')}>
-                Clear Search
+            search || status !== 'all' ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setSearch('');
+                  setStatus('all');
+                }}
+              >
+                Clear Filters
               </button>
             ) : (
               <button type="button" className="btn btn-primary btn-sm" onClick={onRegisterMember}>
@@ -142,15 +186,25 @@ export function MembersPage({
           }
         />
       ) : (
-        <section className="card" aria-label="Registered members table">
-          <div className="card-header">
-            <div>
-              <h2 className="card-title">Registered Borrowers</h2>
-              <p className="card-subtitle">
-                {filteredMembers.length} registered borrower{filteredMembers.length === 1 ? '' : 's'}
-              </p>
+        <section className="ledger-section" aria-label="Registered members table">
+          {search || status !== 'all' ? (
+            <div className="ledger-caption-bar">
+              <span>
+                Showing <strong className="tabular-nums">{filteredMembers.length}</strong> of{' '}
+                <strong className="tabular-nums">{members.length}</strong> borrowers
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setSearch('');
+                  setStatus('all');
+                }}
+              >
+                Clear Filters
+              </button>
             </div>
-          </div>
+          ) : null}
 
           <div
             tabIndex={0}
@@ -206,7 +260,7 @@ export function MembersPage({
                         {member.phone ? <div className="mono table-subline">{member.phone}</div> : null}
                       </td>
                       <td>
-                        <div className="tabular-nums">{activeCount}/5 active</div>
+                        <div className="tabular-nums">{activeCount} active</div>
                         {unpaidFines > 0 ? (
                           <div className="table-subline" style={{ color: 'var(--danger)' }}>
                             {formatCurrency(unpaidFines)} unpaid
@@ -239,7 +293,6 @@ export function MembersPage({
                             aria-label={`View history for ${member.fullName}`}
                             onClick={() => onInspectMember(member)}
                           >
-                            <History size={14} aria-hidden="true" />
                             <span>History</span>
                           </button>
                           <button
@@ -268,7 +321,6 @@ export function MembersPage({
                             aria-label={`Borrow Book for ${member.fullName}`}
                             onClick={() => onBorrowForMember(member)}
                           >
-                            <Repeat size={14} aria-hidden="true" />
                             <span>Borrow</span>
                           </button>
                         </div>
@@ -302,7 +354,7 @@ export function MembersPage({
                 label={`Member QR code ${formatMemberCardCode(qrMember.id)}`}
               />
               <p className="field-hint">
-                Scan this code in the Circulation Camera Scanner to select{' '}
+                Scan this code in the Circulation Scanner to select{' '}
                 <strong>{qrMember.fullName}</strong> during checkout.
               </p>
             </>

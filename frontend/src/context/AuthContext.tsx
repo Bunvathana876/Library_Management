@@ -25,9 +25,10 @@ interface AuthContextValue {
   isStaff: boolean;
   isAdmin: boolean;
   isMember: boolean;
-  remainingSeconds: number;
   signInModalOpen: boolean;
+  signInMode: 'login' | 'register';
   openSignInModal: () => void;
+  openRegisterModal: () => void;
   closeSignInModal: () => void;
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (fullName: string, email: string, password: string) => Promise<AuthUser>;
@@ -74,11 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isRestoring, setIsRestoring] = useState<boolean>(() => loadStoredSession() !== null);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
-    const initial = loadStoredSession();
-    return initial ? Math.max(0, Math.floor((initial.expiresAt - Date.now()) / 1000)) : 0;
-  });
-
+  const [signInMode, setSignInMode] = useState<'login' | 'register'>('login');
   const sessionRef = useRef<StoredSession | null>(session);
   sessionRef.current = session;
 
@@ -87,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionRef.current = null;
     setSession(null);
     setUser(null);
-    setRemainingSeconds(0);
   }, []);
 
   configureHttpClient({
@@ -136,21 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, clearSession]);
 
+  // Expire the session without re-rendering every auth consumer each second.
   useEffect(() => {
-    if (!session) {
-      setRemainingSeconds(0);
-      return;
-    }
-    const updateCountdown = () => {
-      const diff = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000));
-      setRemainingSeconds(diff);
-      if (diff <= 0) {
-        clearSession();
-      }
-    };
-    updateCountdown();
-    const timer = window.setInterval(updateCountdown, 1000);
-    return () => window.clearInterval(timer);
+    if (!session) return;
+    const timer = window.setTimeout(clearSession, Math.max(0, session.expiresAt - Date.now()));
+    return () => window.clearTimeout(timer);
   }, [session, clearSession]);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
@@ -196,7 +182,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSession();
   }, [clearSession]);
 
-  const openSignInModal = useCallback(() => setSignInModalOpen(true), []);
+  const openSignInModal = useCallback(() => {
+    setSignInMode('login');
+    setSignInModalOpen(true);
+  }, []);
+  const openRegisterModal = useCallback(() => {
+    setSignInMode('register');
+    setSignInModalOpen(true);
+  }, []);
   const closeSignInModal = useCallback(() => setSignInModalOpen(false), []);
 
   const value = useMemo<AuthContextValue>(
@@ -207,9 +200,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isStaff: checkStaff(user?.roles),
       isAdmin: checkAdmin(user?.roles),
       isMember: hasRole(user?.roles, 'MEMBER'),
-      remainingSeconds,
       signInModalOpen,
+      signInMode,
       openSignInModal,
+      openRegisterModal,
       closeSignInModal,
       login,
       register,
@@ -218,9 +212,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       user,
       isRestoring,
-      remainingSeconds,
       signInModalOpen,
+      signInMode,
       openSignInModal,
+      openRegisterModal,
       closeSignInModal,
       login,
       register,

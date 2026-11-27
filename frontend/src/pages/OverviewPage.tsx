@@ -1,39 +1,25 @@
-import {
-  AlertTriangle,
-  ArrowRight,
-  BookCheck,
-  BookmarkCheck,
-  BookOpen,
-  Camera,
-  KeyRound,
-  LibraryBig,
-  LogIn,
-  Plus,
-  Repeat,
-  ShieldCheck,
-  UserPlus,
-  Users,
-} from 'lucide-react';
+import { ArrowRight, BookOpen, Camera, Plus, Repeat, UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { AvailabilityGauge } from '@/components/ui/AvailabilityGauge';
 import { BookCoverImage } from '@/components/ui/BookCoverImage';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { StatCardSkeleton, TableSkeleton } from '@/components/ui/Skeleton';
-import { StatCard } from '@/components/ui/StatCard';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { NavTab } from '@/components/layout/Sidebar';
-import type { Book, LoanResponse, Member, MemberBookshelfResponse } from '@/types/api';
+import type { Book, HoldResponse, LoanResponse, Member, MemberBookshelfResponse } from '@/types/api';
 import { describeLoanSchedule, formatCalendarDate } from '@/utils/dates';
-import { formatCallNumber } from '@/utils/formatting';
-import { formatRoleLabel, getPrimaryRole } from '@/utils/roles';
+import { formatCurrency } from '@/utils/formatting';
+import { getInventorySummary } from '@/utils/inventory';
 
 interface OverviewPageProps {
   books: Book[];
   activeLoans: LoanResponse[];
   overdueLoans: LoanResponse[];
   members: Member[];
+  activeHolds?: HoldResponse[];
   bookshelf?: MemberBookshelfResponse | null;
   loadingBooks: boolean;
+  loadingStaff?: boolean;
+  staffError?: string | null;
   booksError?: string | null;
   onRetryBooks?: () => void;
   onNavigate: (tab: NavTab) => void;
@@ -45,460 +31,96 @@ interface OverviewPageProps {
   onRequestReturnLoan: (loan: LoanResponse) => void;
 }
 
-export function OverviewPage({
-  books,
-  activeLoans,
-  overdueLoans,
-  members,
-  bookshelf = null,
-  loadingBooks,
-  booksError = null,
-  onRetryBooks,
-  onNavigate,
-  onInspectBook,
-  onOpenAddBook,
-  onOpenBorrowBook,
-  onOpenScanner,
-  onOpenRegisterMember,
-  onRequestReturnLoan,
+export function OverviewPage({ books, activeLoans, overdueLoans, members, activeHolds = [], bookshelf = null,
+  loadingBooks, loadingStaff = false, staffError, booksError, onRetryBooks, onNavigate, onInspectBook,
+  onOpenAddBook, onOpenBorrowBook, onOpenScanner, onOpenRegisterMember, onRequestReturnLoan,
 }: OverviewPageProps) {
-  const { user, isAuthenticated, isStaff, isAdmin, openSignInModal } = useAuth();
+  const { isAuthenticated, isStaff, openRegisterModal } = useAuth();
+  const inventory = getInventorySummary(books);
+  const inventoryPending = loadingBooks || Boolean(booksError);
+  const staffPending = loadingStaff || Boolean(staffError);
+  const readyHolds = activeHolds.filter(hold => hold.status === 'READY_FOR_PICKUP');
+  const priorityLoans = [...activeLoans].sort((a, b) => a.dueOn.localeCompare(b.dueOn)).slice(0, 6);
+  const recentLoans = [...activeLoans].sort((a, b) => b.borrowedOn.localeCompare(a.borrowedOn) || b.id - a.id).slice(0, 4);
+  const fineTotal = members.reduce((total, member) => total + (member.unpaidFinesTotal ?? 0), 0);
+  const displayStaff = (value: number | string) => staffPending ? '—' : value;
 
-  const availableCount = books.filter((b) => b.available).length;
-  const checkedOutCount = books.length - availableCount;
-  const availPercent = books.length > 0 ? Math.round((availableCount / books.length) * 100) : 0;
-  const primaryRole = getPrimaryRole(user?.roles);
+  const catalogError = booksError ? <div className="alert alert-danger alert-row" role="alert">
+    <span>{booksError}</span>{onRetryBooks ? <button className="btn btn-secondary btn-sm" onClick={onRetryBooks}>Retry catalog</button> : null}
+  </div> : null;
 
-  const priorityLoans = [
-    ...overdueLoans,
-    ...activeLoans.filter((l) => !overdueLoans.some((o) => o.id === l.id)),
-  ].slice(0, 6);
-
-  const featuredBooks = books.slice(0, 6);
-
-  return (
-    <>
-      <section className="hero-banner stagger-enter" aria-label="Workspace summary">
-        <div className="hero-content">
-          <div className="hero-eyebrow">
-            <span>
-              {isAuthenticated && user
-                ? `${formatRoleLabel(primaryRole)} desk · ${user.email}`
-                : 'Public catalog access'}
-            </span>
+  if (!isStaff) return <>
+    <section className="page-intro">
+      <div><div className="eyebrow">Athenaeum library</div><h2>A place for your next chapter.</h2>
+        <p>Explore the collection, borrow a book, and keep track of your reading.</p></div>
+      <button className="btn btn-primary" onClick={() => onNavigate('books')}>Browse Catalog <ArrowRight size={16} aria-hidden="true" /></button>
+    </section>
+    {isAuthenticated && bookshelf ? <section className="reader-summary" aria-label="Your borrowing summary">
+      <div><strong>{bookshelf.fullName}</strong><p>{bookshelf.activeLoans.length} books on loan · {bookshelf.activeHolds.length} reservations</p></div>
+      <button className="btn btn-secondary" onClick={() => onNavigate('bookshelf')}>My Bookshelf <ArrowRight size={16} aria-hidden="true" /></button>
+    </section> : !isAuthenticated ? <div className="reader-summary">
+      <p>A library account lets you borrow books and reserve your next read.</p>
+      <button className="btn btn-secondary" onClick={openRegisterModal}>Create Account</button>
+    </div> : null}
+    {catalogError}
+    <section className="overview-section" aria-labelledby="collection-heading">
+      <div className="overview-section-header"><h3 id="collection-heading">From the collection</h3><span className="text-secondary">{loadingBooks ? 'Loading…' : booksError ? 'Unavailable' : `${books.length} catalog titles`}</span></div>
+      {loadingBooks && !books.length ? <TableSkeleton rows={3} label="Loading the collection" /> : !books.length && !booksError ? <EmptyState flat icon={<BookOpen size={22} />} title="The collection is being prepared" description="Books will appear here when they are added to the library." /> : <div className="recent-books">
+        {books.slice(0, 6).map(book => <article className="recent-book" key={book.id}>
+          <div className="highlight-cover-thumb" aria-hidden="true"><BookCoverImage book={book} width={64} height={96} loading="lazy" className="highlight-cover-img" /></div>
+          <div><h4 className="highlight-title">{book.title}</h4><p className="queue-row-sub">{book.author}</p>
+            <p className="queue-row-sub">{book.available ? 'Available to borrow' : book.reservedForPickup ? 'Reserved for pickup' : 'Currently unavailable'}</p>
+            <button className="btn btn-ghost btn-sm" aria-label={`Details: ${book.title}`} onClick={() => onInspectBook(book.id)}>Details <ArrowRight size={14} aria-hidden="true" /></button>
           </div>
+        </article>)}
+      </div>}
+    </section>
+  </>;
 
-          <h2 className="hero-heading">
-            {isStaff
-              ? 'Library Operations & Circulation'
-              : 'Athenaeum Collection & Circulation Desk'}
-          </h2>
-
-          <p className="hero-copy">
-            {isStaff
-              ? 'Manage catalog titles, member profiles, 14-day loans, and overdue returns'
-              : 'Browse real-time shelf availability across the collection, or sign in with staff credentials to manage loans'}
-          </p>
-
-          <div className="hero-actions">
-            <button type="button" className="btn btn-primary" onClick={() => onNavigate('books')}>
-              <BookOpen size={16} aria-hidden="true" />
-              <span>Browse Catalog</span>
-            </button>
-            {isStaff ? (
-              <button type="button" className="btn btn-hero-outline" onClick={onOpenBorrowBook}>
-                <Repeat size={16} aria-hidden="true" />
-                <span>Issue Loan</span>
-              </button>
-            ) : isAuthenticated ? (
-              <button
-                type="button"
-                className="btn btn-hero-outline"
-                onClick={() => onNavigate('bookshelf')}
-              >
-                <BookmarkCheck size={16} aria-hidden="true" />
-                <span>My Bookshelf</span>
-              </button>
-            ) : (
-              <button type="button" className="btn btn-hero-outline" onClick={openSignInModal}>
-                <LogIn size={16} aria-hidden="true" />
-                <span>Sign In</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="hero-artwork" aria-hidden="true">
-          <img
-            src="/images/Cozy%20Purple-Teal%20Library%20Reading%20Nook.png"
-            alt=""
-            className="hero-artwork-img"
-            width={1448}
-            height={1086}
-            fetchPriority="high"
-            decoding="async"
-          />
-        </div>
+  return <>
+    <section className="page-intro">
+      <div><div className="eyebrow">Circulation overview</div><h2>At the library desk</h2><p>Returns, reservations and the collection at a glance.</p></div>
+      <div className="row-actions">
+        {onOpenScanner ? <button className="btn btn-secondary" onClick={onOpenScanner}><Camera size={16} aria-hidden="true" /> Scan a code</button> : null}
+        <button className="btn btn-primary" onClick={onOpenBorrowBook}><Repeat size={16} aria-hidden="true" /> Issue Loan</button>
+      </div>
+    </section>
+    {catalogError}
+    <dl className="operational-summary" aria-label="Library metrics" aria-busy={loadingBooks || loadingStaff}>
+      <div><dt>Available copies</dt><dd>{inventoryPending ? '—' : inventory.available ?? '—'}</dd><small>{inventoryPending ? 'Inventory unavailable' : inventory.total === null ? 'Copy counts unavailable' : `of ${inventory.total} physical copies`}</small></div>
+      <div><dt>Active loans</dt><dd>{displayStaff(activeLoans.length)}</dd><small>Currently checked out</small></div>
+      <div><dt>Overdue loans</dt><dd className={overdueLoans.length ? 'attention-number' : undefined}>{displayStaff(overdueLoans.length)}</dd><small>Return follow-up needed</small></div>
+      <div><dt>Ready for pickup</dt><dd>{displayStaff(readyHolds.length)}</dd><small>{staffPending ? 'Reservations unavailable' : `${activeHolds.length} total reservations`}</small></div>
+    </dl>
+    <div className="two-col-grid">
+      <section className="overview-section" aria-labelledby="priority-loans-heading">
+        <div className="overview-section-header"><div><h3 id="priority-loans-heading">Returns to follow up</h3><p className="card-subtitle">Earliest due dates first</p></div><button className="btn btn-ghost btn-sm" onClick={() => onNavigate('loans')}>Open Loans Desk <ArrowRight size={14} aria-hidden="true" /></button></div>
+        {loadingStaff ? <TableSkeleton rows={4} label="Loading circulation" /> : staffError ? <p className="field-hint">Circulation data could not be loaded. Retry using the message above.</p> : !priorityLoans.length ? <EmptyState flat icon={<Repeat size={22} />} title="No active loans" description="New checkouts will appear here." action={<button className="btn btn-secondary" onClick={onOpenBorrowBook}>Issue a loan</button>} /> : <div className="queue-list operational-queue">
+          {priorityLoans.map(loan => <div className="queue-row" key={loan.id}>
+            <div className="queue-row-main"><div className="queue-row-top"><span className="queue-row-title">{loan.bookTitle}</span>{loan.overdue ? <StatusBadge tone="danger">Overdue</StatusBadge> : null}</div>
+              <p className="queue-row-sub">{loan.memberName} · Due {formatCalendarDate(loan.dueOn)}</p><p className="queue-row-sub">{describeLoanSchedule(loan.dueOn, loan.returnedOn, loan.overdue)}</p>
+            </div>
+            <button className="btn btn-secondary btn-sm" aria-label={`Return Book: ${loan.bookTitle}`} onClick={() => onRequestReturnLoan(loan)}>Return Book</button>
+          </div>)}
+        </div>}
       </section>
-
-      {loadingBooks && books.length === 0 ? (
-        <StatCardSkeleton count={4} />
-      ) : (
-        <section className="kpi-grid" aria-label="Library metrics">
-          <StatCard
-            staggerIndex={0}
-            label="Total Catalog Books"
-            value={books.length}
-            foot="Titles currently cataloged"
-            icon={<BookOpen size={16} />}
-            tone="accent"
-          />
-          <StatCard
-            staggerIndex={1}
-            label="Available on Shelf"
-            value={availableCount}
-            foot={books.length > 0 ? `${availPercent}% ready to borrow` : 'No titles in catalog'}
-            icon={<LibraryBig size={16} />}
-            tone="success"
-          />
-          <StatCard
-            staggerIndex={2}
-            label={isStaff ? 'Active Loans' : 'Checked Out Copies'}
-            value={isStaff ? activeLoans.length : checkedOutCount}
-            foot={isStaff ? 'Currently out on 14-day term' : 'Currently borrowed by members'}
-            icon={<Repeat size={16} />}
-            tone="warning"
-          />
-          <StatCard
-            staggerIndex={3}
-            label={isStaff ? 'Overdue Alerts' : 'Registered Members'}
-            value={isStaff ? overdueLoans.length : 'Staff Only'}
-            foot={
-              isStaff
-                ? overdueLoans.length > 0
-                  ? `${members.length} registered members`
-                  : `All ${members.length} members in good standing`
-                : 'Sign in as Librarian or Admin'
-            }
-            icon={
-              isStaff && overdueLoans.length > 0 ? (
-                <AlertTriangle size={16} />
-              ) : (
-                <Users size={16} />
-              )
-            }
-            tone={isStaff && overdueLoans.length > 0 ? 'danger' : 'info'}
-          />
+      <div className="overview-side-stack">
+        <section className="overview-section" aria-labelledby="attention-heading">
+          <div className="overview-section-header"><h3 id="attention-heading">Desk priorities</h3></div>
+          <button className="task-link" onClick={() => onNavigate('loans')}><span>Reservations waiting</span><strong>{displayStaff(activeHolds.filter(h => h.status === 'WAITING').length)}</strong></button>
+          <button className="task-link" onClick={() => onNavigate('loans')}><span>Outstanding fines</span><strong>{displayStaff(formatCurrency(fineTotal))}</strong></button>
+          <button className="task-link" onClick={() => onNavigate('members')}><span>Active members</span><strong>{displayStaff(members.filter(m => m.active !== false).length)}</strong></button>
         </section>
-      )}
-
-      {isStaff ? (
-        <div className="two-col-grid">
-          <section className="card" aria-labelledby="priority-loans-heading">
-            <div className="card-header">
-              <div>
-                <h3 id="priority-loans-heading" className="card-title">
-                  Circulation Queue
-                </h3>
-                <p className="card-subtitle">
-                  Overdue returns appear first, followed by upcoming due dates
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => onNavigate('loans')}
-              >
-                <span>Open Loans Desk</span>
-                <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            </div>
-
-            {priorityLoans.length === 0 ? (
-              <EmptyState
-                flat
-                icon={<BookCheck size={22} />}
-                title="No active loans right now"
-                description="All catalog volumes are currently returned on the shelf."
-                action={
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={onOpenBorrowBook}
-                  >
-                    Issue First Loan
-                  </button>
-                }
-              />
-            ) : (
-              <div className="queue-list">
-                {priorityLoans.map((loan) => (
-                  <div key={loan.id} className="queue-row">
-                    <div className="queue-row-main">
-                      <div className="queue-row-top">
-                        <span className="mono catalog-id-badge">#{loan.id}</span>
-                        <span className="queue-row-title">{loan.bookTitle}</span>
-                        <StatusBadge tone={loan.overdue ? 'danger' : 'info'}>
-                          {loan.overdue ? 'Overdue' : 'Active'}
-                        </StatusBadge>
-                      </div>
-                      <div className="queue-row-sub">
-                        Borrowed by <strong>{loan.memberName}</strong> · Due{' '}
-                        {formatCalendarDate(loan.dueOn)} (
-                        {describeLoanSchedule(loan.dueOn, loan.returnedOn, loan.overdue)})
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      aria-label={`Return Book: ${loan.bookTitle}`}
-                      onClick={() => onRequestReturnLoan(loan)}
-                    >
-                      Return Book
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="overview-side-stack">
-            <AvailabilityGauge
-              totalBooks={books.length}
-              availableBooks={availableCount}
-              borrowedBooks={checkedOutCount}
-              overdueCount={overdueLoans.length}
-              loading={loadingBooks}
-              error={booksError}
-              onRetry={onRetryBooks}
-            />
-
-            <section
-              className="card card-padded form-stack"
-              aria-labelledby="quick-actions-heading"
-            >
-              <div>
-                <h3 id="quick-actions-heading" className="card-title">
-                  Quick Staff Operations
-                </h3>
-                <p className="card-subtitle">Common circulation desk workflows</p>
-              </div>
-
-              <div className="form-stack" style={{ gap: '0.6rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary quick-op-btn"
-                  onClick={onOpenBorrowBook}
-                >
-                  <span className="quick-op-label">
-                    <Repeat size={16} aria-hidden="true" />
-                    <span>Borrow a Book (14-Day Loan)</span>
-                  </span>
-                  <ArrowRight size={15} aria-hidden="true" />
-                </button>
-
-                {onOpenScanner ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary quick-op-btn"
-                    onClick={onOpenScanner}
-                  >
-                    <span className="quick-op-label">
-                      <Camera size={16} aria-hidden="true" />
-                      <span>Camera Barcode / QR Scanner</span>
-                    </span>
-                    <ArrowRight size={15} aria-hidden="true" />
-                  </button>
-                ) : null}
-
-                <button
-                  type="button"
-                  className="btn btn-secondary quick-op-btn"
-                  onClick={onOpenRegisterMember}
-                >
-                  <span className="quick-op-label">
-                    <UserPlus size={16} aria-hidden="true" />
-                    <span>Register New Member</span>
-                  </span>
-                  <ArrowRight size={15} aria-hidden="true" />
-                </button>
-
-                <button
-                  type="button"
-                  className="btn btn-secondary quick-op-btn"
-                  onClick={onOpenAddBook}
-                >
-                  <span className="quick-op-label">
-                    <Plus size={16} aria-hidden="true" />
-                    <span>Add Volume to Catalog</span>
-                  </span>
-                  <ArrowRight size={15} aria-hidden="true" />
-                </button>
-
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary quick-op-btn"
-                    onClick={() => onNavigate('admin')}
-                  >
-                    <span className="quick-op-label">
-                      <ShieldCheck size={16} aria-hidden="true" />
-                      <span>Provision Staff / Member Login</span>
-                    </span>
-                    <ArrowRight size={15} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-            </section>
-          </div>
-        </div>
-      ) : (
-        <div className="two-col-grid">
-          <section className="card" aria-labelledby="featured-books-heading">
-            <div className="card-header">
-              <div>
-                <h3 id="featured-books-heading" className="card-title">
-                  Recent Catalog Highlights
-                </h3>
-                <p className="card-subtitle">
-                  Current availability across recent shelf additions
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => onNavigate('books')}
-              >
-                <span>View All</span>
-                <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            </div>
-
-            {loadingBooks && books.length === 0 ? (
-              <div className="queue-list">
-                <TableSkeleton rows={3} label="Loading recent catalog titles" />
-              </div>
-            ) : booksError && featuredBooks.length === 0 ? (
-              <div className="queue-list">
-                <div className="alert alert-danger alert-row" role="alert">
-                  <span>{booksError}</span>
-                  {onRetryBooks ? (
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={onRetryBooks}>
-                      Retry
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : featuredBooks.length === 0 ? (
-              <EmptyState
-                flat
-                icon={<BookOpen size={22} />}
-                title="Catalog is empty"
-                description="Sign in as staff or admin to add the first books to your library."
-              />
-            ) : (
-              <div className="queue-list">
-                {featuredBooks.map((book) => (
-                  <div key={book.id} className="highlight-row">
-                    <div className="highlight-lead">
-                      <div className="highlight-cover-thumb" aria-hidden="true">
-                        <BookCoverImage
-                          book={book}
-                          width={80}
-                          height={104}
-                          loading="lazy"
-                          className="highlight-cover-img"
-                        />
-                      </div>
-                      <div className="queue-row-main">
-                        <span className="mono catalog-id-badge">{formatCallNumber(book.id)}</span>
-                        <div className="highlight-title">{book.title}</div>
-                        <div className="queue-row-sub">
-                          {book.author} · {book.publicationYear}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="row-actions">
-                      <StatusBadge tone={book.available ? 'success' : 'warning'}>
-                        {book.available ? 'Available' : 'Borrowed'}
-                      </StatusBadge>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        aria-label={`Details: ${book.title}`}
-                        onClick={() => onInspectBook(book.id)}
-                      >
-                        Details
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="overview-side-stack">
-            <AvailabilityGauge
-              totalBooks={books.length}
-              availableBooks={availableCount}
-              borrowedBooks={checkedOutCount}
-              overdueCount={null}
-              loading={loadingBooks}
-              error={booksError}
-              onRetry={onRetryBooks}
-            />
-
-            <section
-              className="card card-padded form-stack"
-              aria-labelledby="access-overview-heading"
-            >
-              <div>
-                <h3 id="access-overview-heading" className="card-title">
-                  Role-Based Access
-                </h3>
-                <p className="card-subtitle">Permissions by account role</p>
-              </div>
-
-              <div className="access-info-panel">
-                <KeyRound size={18} aria-hidden="true" className="access-key-icon" />
-                <span>
-                  {isAuthenticated && bookshelf ? (
-                    <>
-                      <strong>My Bookshelf Active:</strong> You have{' '}
-                      <strong>{bookshelf.activeLoans.length}</strong> active loan
-                      {bookshelf.activeLoans.length === 1 ? '' : 's'} and{' '}
-                      <strong>{bookshelf.activeHolds.length}</strong> active hold
-                      {bookshelf.activeHolds.length === 1 ? '' : 's'}. Open{' '}
-                      <button
-                        type="button"
-                        className="error-summary-link"
-                        onClick={() => onNavigate('bookshelf')}
-                      >
-                        My Bookshelf
-                      </button>{' '}
-                      to renew loans (+14 days) or track pickups.
-                    </>
-                  ) : (
-                    <>
-                      <strong>Public &amp; Member:</strong> Search and inspect the catalog freely,
-                      manage personal loans &amp; holds in My Bookshelf, or sign in with{' '}
-                      <code>LIBRARIAN</code> / <code>ADMIN</code> credentials for circulation desk
-                      operations.
-                    </>
-                  )}
-                </span>
-              </div>
-
-              {!isAuthenticated ? (
-                <button type="button" className="btn btn-primary" onClick={openSignInModal}>
-                  <LogIn size={16} aria-hidden="true" />
-                  <span>Sign In</span>
-                </button>
-              ) : null}
-            </section>
-          </div>
-        </div>
-      )}
-    </>
-  );
+        <section className="overview-section" aria-labelledby="collection-summary-heading">
+          <div className="overview-section-header"><h3 id="collection-summary-heading">Collection inventory</h3></div>
+          <dl className="detail-stats"><div><dt>Catalog titles</dt><dd>{inventoryPending ? '—' : books.length}</dd></div><div><dt>Copies on loan</dt><dd>{inventoryPending ? '—' : inventory.loaned ?? '—'}</dd></div><div><dt>Copies reserved</dt><dd>{inventoryPending ? '—' : inventory.onHold ?? '—'}</dd></div></dl>
+          <div className="row-actions section-actions"><button className="btn btn-secondary btn-sm" onClick={onOpenAddBook}><Plus size={14} aria-hidden="true" /> Add book</button><button className="btn btn-ghost btn-sm" onClick={onOpenRegisterMember}><UserPlus size={14} aria-hidden="true" /> Register member</button></div>
+        </section>
+      </div>
+    </div>
+    <section className="overview-section" aria-labelledby="recent-checkouts-heading">
+      <div className="overview-section-header"><h3 id="recent-checkouts-heading">Latest active checkouts</h3><span className="field-hint">Current loans, newest first</span></div>
+      {staffPending ? <p className="field-hint section-actions">Circulation data unavailable while loading or retrying.</p> : recentLoans.length ? <div className="activity-list">{recentLoans.map(loan => <div key={loan.id} className="activity-row"><div><strong>{loan.bookTitle}</strong><p className="queue-row-sub">{loan.memberName} · {loan.copyBarcode}</p></div><span className="text-secondary">{formatCalendarDate(loan.borrowedOn)}</span></div>)}</div> : <p className="field-hint section-actions">No active checkout activity.</p>}
+    </section>
+  </>;
 }

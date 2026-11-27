@@ -38,6 +38,7 @@ export function ConfirmDialog({
           type="button"
           className="btn btn-secondary"
           autoFocus
+          data-dialog-autofocus
           onClick={onClose}
           disabled={busy}
         >

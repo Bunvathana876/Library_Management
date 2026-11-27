@@ -37,7 +37,7 @@ const PAGE_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
     subtitle: 'Active checkouts with due-date countdowns, 14-day renewals, holds, and history',
   },
   loans: {
-    title: 'Loans & Returns Desk',
+    title: 'Loans & Returns',
     subtitle: 'Active checkouts, overdue alerts, holds queue, and barcode scanning',
   },
   members: {
@@ -45,7 +45,7 @@ const PAGE_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
     subtitle: 'Registered borrowers, member QR passes, and active loan standing',
   },
   admin: {
-    title: 'Staff & Account Provisioning',
+    title: 'Staff & Accounts',
     subtitle: 'Create staff or member accounts and review role permissions',
   },
 };
@@ -67,7 +67,7 @@ export function TopBar({
   onMarkAllNotificationsRead,
   onNavigateBookshelf,
 }: TopBarProps) {
-  const { isAuthenticated, isStaff, openSignInModal } = useAuth();
+  const { isAuthenticated, isStaff, openSignInModal, openRegisterModal } = useAuth();
   const { renderedScheme, toggleTheme } = useTheme();
   const meta = PAGE_TITLES[activeTab];
 
@@ -89,12 +89,11 @@ export function TopBar({
         </button>
         <div>
           <h1 className="topbar-title">{meta.title}</h1>
-          <p className="topbar-subtitle">{meta.subtitle}</p>
         </div>
       </div>
 
       <div className="topbar-actions">
-        <button
+        {activeTab !== 'books' ? <button
           type="button"
           className="quick-search-trigger"
           onClick={onQuickSearch}
@@ -104,7 +103,7 @@ export function TopBar({
           <Search size={15} aria-hidden="true" />
           <span className="quick-search-label">Search catalog</span>
           <kbd className="kbd-hint">/</kbd>
-        </button>
+        </button> : null}
 
         {isStaff && activeTab === 'books' ? (
           <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAddBook}>
@@ -116,7 +115,7 @@ export function TopBar({
         {isStaff && activeTab === 'loans' ? (
           <>
             {onOpenScanner ? (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenScanner}>
+              <button type="button" className="btn btn-secondary btn-sm topbar-scan" aria-label="Scan checkout" onClick={onOpenScanner}>
                 <Camera size={16} aria-hidden="true" />
                 <span>Scan</span>
               </button>
@@ -136,10 +135,16 @@ export function TopBar({
         ) : null}
 
         {!isAuthenticated ? (
-          <button type="button" className="btn btn-primary btn-sm" onClick={openSignInModal}>
-            <LogIn size={16} aria-hidden="true" />
-            <span>Sign In</span>
-          </button>
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={openRegisterModal}>
+              <UserPlus size={16} aria-hidden="true" />
+              <span>Create Account</span>
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={openSignInModal}>
+              <LogIn size={16} aria-hidden="true" />
+              <span>Sign In</span>
+            </button>
+          </>
         ) : onRefreshNotifications && onMarkNotificationRead && onMarkAllNotificationsRead && onNavigateBookshelf ? (
           <NotificationBell
             unreadCount={unreadNotificationCount}

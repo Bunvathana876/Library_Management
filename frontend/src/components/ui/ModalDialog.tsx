@@ -86,6 +86,7 @@ export function ModalDialog({
       dialog.removeAttribute('data-closing');
       closingRef.current = false;
       dialog.showModal();
+      dialog.querySelector<HTMLElement>('[data-dialog-autofocus]')?.focus();
     } else if (!open && dialog.open) {
       void closeWithAnimation();
     }

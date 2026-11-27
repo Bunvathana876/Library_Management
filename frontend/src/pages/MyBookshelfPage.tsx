@@ -6,33 +6,26 @@ import {
   BookOpen,
   CalendarClock,
   Clock,
-  Eye,
   History,
   LogIn,
   QrCode,
-  Receipt,
-  RefreshCw,
-  Sparkles,
-  UserCheck,
-  XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { AccessibleTabs, type TabItem } from '@/components/ui/AccessibleTabs';
 import { BookCoverImage } from '@/components/ui/BookCoverImage';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { QrCodeCanvas } from '@/components/ui/QrCodeCanvas';
-import { StatCardSkeleton, TableSkeleton } from '@/components/ui/Skeleton';
-import { StatCard } from '@/components/ui/StatCard';
+import { BookshelfSkeleton } from '@/components/ui/Skeleton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { Book, HoldResponse, LoanResponse, MemberBookshelfResponse } from '@/types/api';
 import {
   describeLoanSchedule,
   formatCalendarDate,
-  loanProgressPercent,
 } from '@/utils/dates';
 import {
   formatCallNumber,
   formatCurrency,
+  formatFineStatus,
   formatLoanCode,
   formatMemberCardCode,
 } from '@/utils/formatting';
@@ -50,27 +43,23 @@ interface MyBookshelfPageProps {
 
 type ShelfTab = 'loans' | 'holds' | 'history';
 
-function buildLoanBookStub(loan: LoanResponse): Book {
+function buildLoanBookStub(loan: LoanResponse): Pick<Book, 'id' | 'title' | 'author' | 'coverUrl' | 'isbn'> {
   return {
     id: loan.bookId,
     title: loan.bookTitle,
     author: loan.bookAuthor ?? '',
-    publicationYear: 2024,
     isbn: loan.bookIsbn ?? null,
     coverUrl: loan.bookCoverUrl ?? null,
-    available: loan.returnedOn !== null,
   };
 }
 
-function buildHoldBookStub(hold: HoldResponse): Book {
+function buildHoldBookStub(hold: HoldResponse): Pick<Book, 'id' | 'title' | 'author' | 'coverUrl' | 'isbn'> {
   return {
     id: hold.bookId,
     title: hold.bookTitle,
     author: hold.bookAuthor,
-    publicationYear: 2024,
     isbn: hold.bookIsbn,
     coverUrl: hold.bookCoverUrl,
-    available: false,
   };
 }
 
@@ -98,7 +87,7 @@ export function MyBookshelfPage({
       <EmptyState
         icon={<BookOpen size={22} />}
         title="Sign in to view My Bookshelf"
-        description="View your active checkouts with due-date countdowns, renew eligible loans for +14 days, track holds, and review return history."
+        description="See your borrowed books, renew eligible loans, and manage reservations."
         action={
           <button type="button" className="btn btn-primary" onClick={openSignInModal}>
             <LogIn size={16} aria-hidden="true" />
@@ -110,12 +99,7 @@ export function MyBookshelfPage({
   }
 
   if (loading && !bookshelf) {
-    return (
-      <div className="form-stack">
-        <StatCardSkeleton count={4} />
-        <TableSkeleton rows={4} label="Loading your personal bookshelf" />
-      </div>
-    );
+    return <BookshelfSkeleton />;
   }
 
   if (errorMsg && !bookshelf) {
@@ -138,7 +122,6 @@ export function MyBookshelfPage({
 
   const memberCode = formatMemberCardCode(bookshelf.memberId);
   const readyHolds = bookshelf.activeHolds.filter((h) => h.status === 'READY_FOR_PICKUP');
-  const waitingHolds = bookshelf.activeHolds.filter((h) => h.status === 'WAITING');
   const overdueCount = bookshelf.activeLoans.filter((l) => l.overdue).length;
   const activeLimit = bookshelf.activeLoanLimit ?? 5;
   const unpaidFinesTotal = bookshelf.unpaidFinesTotal ?? 0;
@@ -186,12 +169,9 @@ export function MyBookshelfPage({
 
   return (
     <div className="form-stack">
-      <section className="card card-padded bookshelf-header-card" aria-label="Patron membership card">
+      <section className="bookshelf-header-card" aria-label="Patron membership card">
         <div className="bookshelf-identity">
-          <div className="bookshelf-eyebrow">
-            <UserCheck size={15} aria-hidden="true" />
-            <span>Patron Self-Service · {memberCode}</span>
-          </div>
+          <div className="bookshelf-eyebrow">Member · {memberCode}</div>
           <h2 className="bookshelf-patron-name">{bookshelf.fullName}</h2>
           <p className="card-subtitle">{bookshelf.email}</p>
         </div>
@@ -207,7 +187,6 @@ export function MyBookshelfPage({
             <span>{showQrPass ? 'Hide Member QR' : 'Member QR Pass'}</span>
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={onBrowseCatalog}>
-            <BookOpen size={15} aria-hidden="true" />
             <span>Browse Catalog</span>
           </button>
         </div>
@@ -235,7 +214,7 @@ export function MyBookshelfPage({
       {readyHolds.length > 0 ? (
         <section className="hold-pickup-banner" aria-label="Books ready for pickup">
           <div className="hold-pickup-banner-head">
-            <Sparkles size={18} aria-hidden="true" />
+            <BookCheck size={18} aria-hidden="true" />
             <strong>
               {readyHolds.length === 1
                 ? '1 reserved book is waiting for you at the circulation desk!'
@@ -302,42 +281,14 @@ export function MyBookshelfPage({
         </section>
       ) : null}
 
-      <section className="kpi-grid" aria-label="My bookshelf summary">
-        <StatCard
-          label="Active Loans"
-          value={`${bookshelf.activeLoans.length}/${activeLimit}`}
-          foot={overdueCount > 0 ? `${overdueCount} overdue` : 'All loans on schedule'}
-          icon={<BookOpen size={16} />}
-          tone={overdueCount > 0 ? 'danger' : 'accent'}
-        />
-        <StatCard
-          label="Ready for Pickup"
-          value={readyHolds.length}
-          foot={readyHolds.length > 0 ? 'Held at circulation desk' : 'No pending pickups'}
-          icon={<Sparkles size={16} />}
-          tone={readyHolds.length > 0 ? 'success' : 'info'}
-        />
-        <StatCard
-          label="Unpaid Fines"
-          value={formatCurrency(unpaidFinesTotal)}
-          foot={
-            unpaidFinesTotal > 0
-              ? `Blocked at ${formatCurrency(fineThreshold)}`
-              : 'Account in good standing'
-          }
-          icon={<Receipt size={16} />}
-          tone={unpaidFinesTotal >= fineThreshold ? 'danger' : unpaidFinesTotal > 0 ? 'warning' : 'success'}
-        />
-        <StatCard
-          label="Returned & Holds"
-          value={bookshelf.returnHistory.length}
-          foot={`${waitingHolds.length} waiting in queue`}
-          icon={<BookCheck size={16} />}
-          tone="success"
-        />
-      </section>
+      <dl className="shelf-summary" aria-label="My bookshelf summary">
+        <div><dt>Borrowed</dt><dd>{bookshelf.activeLoans.length}/{activeLimit}</dd></div>
+        <div><dt>Overdue</dt><dd>{overdueCount}</dd></div>
+        <div><dt>Ready for pickup</dt><dd>{readyHolds.length}</dd></div>
+        <div><dt>Unpaid fines</dt><dd>{formatCurrency(unpaidFinesTotal)}</dd></div>
+      </dl>
 
-      <section className="card" aria-label="My bookshelf tabs">
+      <section className="bookshelf-tabs" aria-label="My bookshelf tabs">
         <div className="card-header bookshelf-tabs-header">
           <AccessibleTabs
             ariaLabel="My bookshelf sections"
@@ -370,9 +321,8 @@ export function MyBookshelfPage({
             ) : (
               <div className="bookshelf-loan-list">
                 {bookshelf.activeLoans.map((loan) => {
-                  const pct = loanProgressPercent(loan.borrowedOn, loan.dueOn, loan.returnedOn);
                   return (
-                    <article key={loan.id} className="bookshelf-loan-card">
+                    <article key={loan.id} className="bookshelf-loan-card" data-overdue={loan.overdue}>
                       <div className="bookshelf-loan-lead">
                         <div className="highlight-cover-thumb" aria-hidden="true">
                           <BookCoverImage
@@ -410,13 +360,6 @@ export function MyBookshelfPage({
                               {describeLoanSchedule(loan.dueOn, loan.returnedOn, loan.overdue)}
                             </span>
                           </p>
-                          <div className="loan-progress-track" aria-hidden="true">
-                            <div
-                              className="loan-progress-fill"
-                              data-tone={loan.overdue ? 'danger' : pct >= 80 ? 'warning' : 'accent'}
-                              style={{ transform: `scaleX(${pct / 100})` }}
-                            />
-                          </div>
                           {!loan.renewable && loan.renewDisabledReason ? (
                             <p className="bookshelf-renew-reason">{loan.renewDisabledReason}</p>
                           ) : null}
@@ -429,7 +372,6 @@ export function MyBookshelfPage({
                           className="btn btn-ghost btn-sm"
                           onClick={() => onInspectBook(loan.bookId)}
                         >
-                          <Eye size={14} aria-hidden="true" />
                           <span>Details</span>
                         </button>
                         <button
@@ -439,7 +381,6 @@ export function MyBookshelfPage({
                           title={loan.renewDisabledReason ?? 'Extend due date by 14 days'}
                           onClick={() => void handleRenew(loan)}
                         >
-                          <RefreshCw size={14} aria-hidden="true" />
                           <span>
                             {busyLoanId === loan.id ? 'Renewing…' : 'Renew (+14d)'}
                           </span>
@@ -519,7 +460,6 @@ export function MyBookshelfPage({
                         className="btn btn-ghost btn-sm"
                         onClick={() => onInspectBook(hold.bookId)}
                       >
-                        <Eye size={14} aria-hidden="true" />
                         <span>Details</span>
                       </button>
                       <button
@@ -528,7 +468,6 @@ export function MyBookshelfPage({
                         disabled={busyHoldId === hold.id}
                         onClick={() => void handleCancel(hold)}
                       >
-                        <XCircle size={14} aria-hidden="true" />
                         <span>{busyHoldId === hold.id ? 'Cancelling…' : 'Cancel Hold'}</span>
                       </button>
                     </div>
@@ -631,7 +570,7 @@ export function MyBookshelfPage({
                           {loan.renewalCount}/{loan.maxRenewals}
                           {loan.fineStatus && loan.fineStatus !== 'NONE' ? (
                             <div className="table-subline">
-                              Fine {formatCurrency(loan.fineAmount)} ({loan.fineStatus})
+                              Fine {formatCurrency(loan.fineAmount)} ({formatFineStatus(loan.fineStatus)})
                             </div>
                           ) : null}
                         </td>
@@ -639,10 +578,10 @@ export function MyBookshelfPage({
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm"
+                            aria-label={`Details: ${loan.bookTitle}`}
                             onClick={() => onInspectBook(loan.bookId)}
                           >
-                            <Eye size={14} aria-hidden="true" />
-                            <span>Inspect</span>
+                            <span>Details</span>
                           </button>
                         </td>
                       </tr>
@@ -671,7 +610,7 @@ export function MyBookshelfPage({
                                   : 'neutral'
                             }
                           >
-                            {f.fineStatus} · {formatCurrency(f.fineAmount)}
+                            {formatFineStatus(f.fineStatus)} · {formatCurrency(f.fineAmount)}
                           </StatusBadge>
                         </div>
                         <div className="queue-row-title">{f.bookTitle}</div>

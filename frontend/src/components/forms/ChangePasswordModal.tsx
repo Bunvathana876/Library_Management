@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { AlertCircle, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '@/api/authApi';
 import { ErrorSummary, type SummaryErrorItem } from '@/components/ui/ErrorSummary';
 import { ModalDialog } from '@/components/ui/ModalDialog';
@@ -10,10 +10,11 @@ import { evaluatePasswordStrength } from '@/utils/formatting';
 
 interface ChangePasswordModalProps {
   open: boolean;
+  email?: string;
   onClose: () => void;
 }
 
-export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps) {
+export function ChangePasswordModal({ open, email, onClose }: ChangePasswordModalProps) {
   const { notify } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -91,6 +92,16 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
       subtitle="Update the password for your signed-in account"
     >
       <form ref={formRef} className="form-stack" onSubmit={handleSubmit} noValidate>
+        <input
+          type="email"
+          name="username"
+          autoComplete="username"
+          value={email ?? ''}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+          className="visually-hidden"
+        />
         <div className="modal-body form-stack">
           <ErrorSummary errors={summaryErrors} />
 
@@ -115,6 +126,7 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
                 enterKeyHint="next"
                 required
                 autoFocus
+                data-dialog-autofocus
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 data-error="change-current-password-error"
@@ -196,7 +208,6 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            <KeyRound size={15} aria-hidden="true" />
             <span>{submitting ? 'Updating…' : 'Update Password'}</span>
           </button>
         </div>

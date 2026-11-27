@@ -218,6 +218,7 @@ export function BorrowBookModal({
               className="select-control"
               required
               autoFocus
+              data-dialog-autofocus
               disabled={availableBooks.length === 0}
               value={bookId}
               onChange={(e) => {
@@ -299,7 +300,7 @@ export function BorrowBookModal({
               ) : (
                 members.map((m) => (
                   <option key={m.id} value={m.id}>
-                    #{m.id} — {m.fullName} ({m.activeLoanCount ?? 0}/5 loans
+                    #{m.id} — {m.fullName} ({m.activeLoanCount ?? 0} active loans
                     {(m.unpaidFinesTotal ?? 0) > 0
                       ? `, ${formatCurrency(m.unpaidFinesTotal)} fines`
                       : ''}
