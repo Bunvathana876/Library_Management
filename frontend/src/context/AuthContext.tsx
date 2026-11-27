@@ -132,6 +132,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, clearSession]);
 
+  // Public-site links open the existing account dialog after session restoration.
+  useEffect(() => {
+    if (isRestoring) return;
+    const location = new URL(window.location.href);
+    const requested = location.searchParams.get('auth');
+    if (requested !== 'login' && requested !== 'register') return;
+    location.searchParams.delete('auth');
+    window.history.replaceState(window.history.state, '', location);
+    if (!user) {
+      setSignInMode(requested);
+      setSignInModalOpen(true);
+    }
+  }, [isRestoring, user]);
+
   // Expire the session without re-rendering every auth consumer each second.
   useEffect(() => {
     if (!session) return;

@@ -36,7 +36,8 @@ The application allows libraries to manage book collections, member registration
 
 ## 🏛 Overview & Architecture
 
-The application is structured into two clean workspaces:
+The project has three application workspaces:
+- **`public-website/`** is the Athenaeum visitor website with public book discovery, membership guidance and links into the existing reader application. Start it with `docker compose up -d --build frontend public-website` and open `http://localhost:3200`. See [the public website guide](public-website/README.md).
 - **`backend/`**: Stateless Spring Boot REST service handling business logic, data persistence, Flyway migrations, and HS256 JWT security.
 - **`frontend/`**: Fast React 19 Single Page Application built with Vite, TypeScript, and accessible CSS tokens.
 

@@ -1,0 +1,4 @@
+# Athenaeum • Public reading room
+Use warm paper (#f8f6ee), forest ink (#203d32) and burnt sienna (#96452e). Book covers and editorial photographs supply secondary color. Use Newsreader for book titles and display text, Inter for reading and navigation. Both variable fonts ship locally via Fontsource under the SIL Open Font License.
+
+A two-column frontispiece pairs a large italic second line with a cropped shelf photograph. Use fluid display sizes, a 1320px content limit, 4–8px spacing increments, thin rules and square-edged photographs. Primary links use forest or paper fills. Underlined text links serve secondary actions. Collapse the navigation and stack text above imagery on smaller screens. Use brief transitions for interactive feedback and remove motion under reduced-motion preferences.
