@@ -27,7 +27,9 @@ interface AuthContextValue {
   isMember: boolean;
   remainingSeconds: number;
   signInModalOpen: boolean;
+  signInMode: 'login' | 'register';
   openSignInModal: () => void;
+  openRegisterModal: () => void;
   closeSignInModal: () => void;
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (fullName: string, email: string, password: string) => Promise<AuthUser>;
@@ -74,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isRestoring, setIsRestoring] = useState<boolean>(() => loadStoredSession() !== null);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
+  const [signInMode, setSignInMode] = useState<'login' | 'register'>('login');
   const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
     const initial = loadStoredSession();
     return initial ? Math.max(0, Math.floor((initial.expiresAt - Date.now()) / 1000)) : 0;
@@ -196,7 +199,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSession();
   }, [clearSession]);
 
-  const openSignInModal = useCallback(() => setSignInModalOpen(true), []);
+  const openSignInModal = useCallback(() => {
+    setSignInMode('login');
+    setSignInModalOpen(true);
+  }, []);
+  const openRegisterModal = useCallback(() => {
+    setSignInMode('register');
+    setSignInModalOpen(true);
+  }, []);
   const closeSignInModal = useCallback(() => setSignInModalOpen(false), []);
 
   const value = useMemo<AuthContextValue>(
@@ -209,7 +219,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMember: hasRole(user?.roles, 'MEMBER'),
       remainingSeconds,
       signInModalOpen,
+      signInMode,
       openSignInModal,
+      openRegisterModal,
       closeSignInModal,
       login,
       register,
@@ -220,7 +232,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isRestoring,
       remainingSeconds,
       signInModalOpen,
+      signInMode,
       openSignInModal,
+      openRegisterModal,
       closeSignInModal,
       login,
       register,

@@ -2,6 +2,29 @@
 
 Date: 2026-11-27. Follow-up to Phase 7.1; no Phase 8 work.
 
+## Screenshot follow-up — 2026-11-27
+
+The supplied public-overview screenshot showed content cut off to the right. A fresh Chrome window at port 3100 correctly switched to mobile navigation, so that exact full-page clipping was not reproduced in the current build. A more detailed check did reproduce **internal hero clipping at 320px with 200% root text**: 301px of content inside a 286px card. A document-width-only check had missed it because the hero hides overflow.
+
+Changes: allow the hero heading/copy to wrap within their available width. Add a named inline-size container on the page content; overview metrics, lower columns and hero now adapt to the actual content width left beside the sidebar and to enlarged text. Existing viewport rules remain as a fallback. Existing colors, illustrations, navigation, member checkout and backend behavior are preserved.
+
+Current completed checklist:
+- [x] Reproduce internal clipping and add a reusable browser check that detects it.
+- [x] Verify 20 overview combinations on Vite 5174 and repeat all 20 on the rebuilt production frontend at 3100. Widths: 320, 375, 667 (landscape), 689, 768, 1023, 1024, 1100, 1280, 1440; normal and 200% root text. Document width, card content, actual heading text bounds and mobile sidebar state all passed.
+- [x] Verify eight catalog width/text combinations, mobile menu open/Escape close, four Create Account dialog widths, and opening Sign In to Borrow with the selected title retained.
+- [x] Inspect 689px and 1024px overview screenshots including long catalog titles.
+- [x] Frontend unit tests: **34 passed in 12 files**. `npm run typecheck`, `npm run build`, and `git diff --check` passed. No lint script exists. Backend code was not changed or retested in this CSS follow-up.
+- [x] Rebuild only the isolated `library-phase71` frontend and recreate it using `up -d --no-deps --wait frontend`; frontend healthy. Database/API containers and data were untouched.
+
+Reusable Playwright CLI callback: `scripts/responsive_overview_audit.js`. With a guest browser session already open to a local populated catalog, pass the file contents to the CLI's `run-code` command. It waits for fonts and finite animations, throws on clipping, and restores text size and viewport afterward. Example from the repository root:
+
+```sh
+rtk proxy npx --package @playwright/cli playwright-cli --session responsive-fix open http://127.0.0.1:3100/#overview
+rtk proxy npx --package @playwright/cli playwright-cli --session responsive-fix run-code "$(cat scripts/responsive_overview_audit.js)"
+```
+
+Evidence in ignored `output/playwright/`: `overview-responsive-staging-audit.txt`, `overview-responsive-689.png`, `overview-responsive-1024.png`. These are Chromium checks; actual device/browser zoom, mobile Safari and physical camera acceptance remain manual. No public deployment, commit or push was performed in this follow-up. Earlier sections below retain the historical audit and its then-current counts.
+
 ## Completed checklist
 - [x] Preserve existing design, APIs, business rules and uncommitted Phase 7 documentation.
 - [x] Repair confirmed narrow-screen and enlarged-text overflow.

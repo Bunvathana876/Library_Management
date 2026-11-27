@@ -97,7 +97,7 @@ export function OverviewPage({
           <p className="hero-copy">
             {isStaff
               ? 'Manage catalog titles, member profiles, 14-day loans, and overdue returns'
-              : 'Browse real-time shelf availability across the collection, or sign in with staff credentials to manage loans'}
+              : 'Find your next read. Create an account or sign in to borrow available books for 14 days and manage your loans in My Bookshelf.'}
           </p>
 
           <div className="hero-actions">

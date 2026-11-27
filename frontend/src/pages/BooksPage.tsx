@@ -649,6 +649,18 @@ export function BooksPage({
                       )
                     ) : null}
 
+                    {!isStaff && (book.available || myHold?.status === 'READY_FOR_PICKUP') ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        aria-label={`${isAuthenticated ? 'Borrow' : 'Sign in to borrow'} ${book.title}`}
+                        onClick={() => onBorrowBook(book)}
+                      >
+                        <Repeat size={14} aria-hidden="true" />
+                        <span>{isAuthenticated ? 'Borrow' : 'Sign In to Borrow'}</span>
+                      </button>
+                    ) : null}
+
                     {isStaff ? (
                       <div className="row-actions">
                         {book.available || book.reservedForPickup ? (
@@ -799,13 +811,14 @@ export function BooksPage({
                               </button>
                             )
                           ) : null}
-                          {isStaff && (book.available || book.reservedForPickup) ? (
+                          {book.available || (isStaff && book.reservedForPickup) || myHold?.status === 'READY_FOR_PICKUP' ? (
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
+                              aria-label={`${isAuthenticated ? 'Borrow' : 'Sign in to borrow'} ${book.title}`}
                               onClick={() => onBorrowBook(book)}
                             >
-                              {book.reservedForPickup ? 'Pickup' : 'Borrow'}
+                              {!isAuthenticated ? 'Sign In to Borrow' : isStaff && book.reservedForPickup ? 'Pickup' : 'Borrow'}
                             </button>
                           ) : null}
                           {isStaff ? (

@@ -215,7 +215,7 @@ public class LoanService {
                 Hold otherReady = anyReady.get();
                 if (!otherReady.getMember().getId().equals(member.getId())) {
                     throw new BusinessRuleException(
-                        "This book is currently reserved for " + otherReady.getMember().getFullName() + " at the circulation desk"
+                        "This book is currently reserved for another member at the circulation desk"
                     );
                 }
                 otherReady.markFulfilled(now);
@@ -599,9 +599,7 @@ public class LoanService {
             );
             if (otherReady.isPresent()) {
                 throw new BusinessRuleException(
-                    "This book is currently reserved for "
-                        + otherReady.get().getMember().getFullName()
-                        + " at the circulation desk"
+                    "This book is currently reserved for another member at the circulation desk"
                 );
             }
         }

@@ -401,13 +401,26 @@ export function BookDetailModal({
 
       <div
         className={`modal-footer ${
-          book && (isStaff || (!book.available && isAuthenticated && onPlaceHold))
+          book && (isStaff || book.available || (!book.available && isAuthenticated && onPlaceHold))
             ? 'modal-footer-split'
             : ''
         }`.trim()}
       >
         {book ? (
           <div className="row-actions">
+            {!isStaff && (book.available || myActiveHolds.some((hold) => hold.bookId === book.id && hold.status === 'READY_FOR_PICKUP')) ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  onClose();
+                  onBorrow(book);
+                }}
+              >
+                <Repeat size={15} aria-hidden="true" />
+                <span>{isAuthenticated ? 'Borrow' : 'Sign In to Borrow'}</span>
+              </button>
+            ) : null}
             {isStaff ? (
               <>
                 <button

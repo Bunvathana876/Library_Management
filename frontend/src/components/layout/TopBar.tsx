@@ -67,7 +67,7 @@ export function TopBar({
   onMarkAllNotificationsRead,
   onNavigateBookshelf,
 }: TopBarProps) {
-  const { isAuthenticated, isStaff, openSignInModal } = useAuth();
+  const { isAuthenticated, isStaff, openSignInModal, openRegisterModal } = useAuth();
   const { renderedScheme, toggleTheme } = useTheme();
   const meta = PAGE_TITLES[activeTab];
 
@@ -136,10 +136,16 @@ export function TopBar({
         ) : null}
 
         {!isAuthenticated ? (
-          <button type="button" className="btn btn-primary btn-sm" onClick={openSignInModal}>
-            <LogIn size={16} aria-hidden="true" />
-            <span>Sign In</span>
-          </button>
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={openRegisterModal}>
+              <UserPlus size={16} aria-hidden="true" />
+              <span>Create Account</span>
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={openSignInModal}>
+              <LogIn size={16} aria-hidden="true" />
+              <span>Sign In</span>
+            </button>
+          </>
         ) : onRefreshNotifications && onMarkNotificationRead && onMarkAllNotificationsRead && onNavigateBookshelf ? (
           <NotificationBell
             unreadCount={unreadNotificationCount}

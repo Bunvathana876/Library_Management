@@ -746,6 +746,13 @@ dialog.modal-dialog[open]:where(:not([data-closing]))::backdrop {
   margin-top: 2px;
 }
 
+/* Long catalog metadata must not make the sticky title column cover row actions. */
+.catalog-page .data-table tbody th[scope='row'] > div,
+.catalog-page .data-table tbody td:nth-child(2) > div {
+  max-inline-size: 20rem;
+  overflow-wrap: anywhere;
+}
+
 .row-actions {
   display: inline-flex;
   align-items: center;

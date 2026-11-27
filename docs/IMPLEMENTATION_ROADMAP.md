@@ -118,3 +118,20 @@ Next: finish 7.2 browser verification, then 7.3 renewal rules. Inspection also c
 - [x] Fixed additional long-title/category/email overflow, scanner form sizing, enlarged action labels, and notification viewport clipping. Preserved the existing design and circulation behavior.
 - [x] Recorded exact verification scope and remaining physical-device checks in [RESPONSIVE_UI_VERIFICATION.md](RESPONSIVE_UI_VERIFICATION.md).
 - Current live frontend: Vite port 5174, exec session 50527; proxied to isolated staging on 3100. Revalidate handles on resume. Playwright session: responsive. Screenshots in ignored output/playwright/responsive-*.png. Wait for finite animations before capturing screenshots.
+
+
+## Member self-service checkout — verified, 2026-11-27
+- [x] Added visible Create Account and reader Borrow actions in catalog grid/list and book details.
+- [x] Preserved selected-book intent through registration/sign-in and required explicit checkout confirmation; cancellation discards the intent.
+- [x] Added authenticated own-account checkout using existing PostgreSQL locks, borrowing limits, fines and hold ownership; staff API authorization unchanged.
+- [x] Removed other-borrower names from reservation errors and fixed long catalog columns intercepting Borrow clicks.
+- [x] Full backend verify: 93 passed; frontend: 34 passed; typecheck/build passed. Six new PostgreSQL tests and five frontend regressions included.
+- [x] Verified new-account and returning-account flows in Chromium against isolated staging; loans persisted after reload. Fifty size/text combinations passed.
+- Evidence, transaction boundaries, local preview and remaining deployment limits: [MEMBER_SELF_SERVICE_CHECKOUT.md](MEMBER_SELF_SERVICE_CHECKOUT.md).
+
+## Overview screenshot follow-up — 2026-11-27
+- [x] Found internal hero text clipping at 320px/200% text that document-width checks missed; fixed wrapping without redesigning the UI.
+- [x] Adapted overview layout to available page-content width beside the sidebar using container queries with existing media-query fallbacks.
+- [x] Added reusable `scripts/responsive_overview_audit.js`; 20 overview checks passed on source and again on rebuilt local staging, plus eight catalog checks and mobile navigation/account-dialog smoke checks.
+- [x] Frontend 34 tests, typecheck, production build and whitespace check passed. Rebuilt only the isolated frontend at port 3100; database unchanged.
+- Evidence and remaining real-device limits: [RESPONSIVE_UI_VERIFICATION.md](RESPONSIVE_UI_VERIFICATION.md). Existing member checkout changes remain uncommitted and preserved.

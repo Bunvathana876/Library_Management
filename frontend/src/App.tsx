@@ -15,6 +15,7 @@ import {
   type ScannerMode,
 } from '@/components/forms/CirculationScannerModal';
 import { MemberFormModal } from '@/components/forms/MemberFormModal';
+import { MemberBorrowModal } from '@/components/forms/MemberBorrowModal';
 import { MemberHistoryDrawer } from '@/components/forms/MemberHistoryDrawer';
 import { SignInModal } from '@/components/forms/SignInModal';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -32,6 +33,7 @@ import { MembersPage } from '@/pages/MembersPage';
 import { MyBookshelfPage } from '@/pages/MyBookshelfPage';
 import { OverviewPage } from '@/pages/OverviewPage';
 import type {
+  AuthUser,
   Book,
   HealthResponse,
   HoldResponse,
@@ -43,6 +45,7 @@ import type {
 import { formatCalendarDate } from '@/utils/dates';
 import { formatApiErrorMessage } from '@/utils/errors';
 import { formatCurrency } from '@/utils/formatting';
+import { isStaff as hasStaffRole } from '@/utils/roles';
 
 const VALID_TABS: ReadonlyArray<NavTab> = [
   'overview',
@@ -63,7 +66,7 @@ const TAB_PAGE_TITLES: Record<NavTab, string> = {
 };
 
 function LibraryWorkspace() {
-  const { isAuthenticated, isStaff, signInModalOpen, closeSignInModal } = useAuth();
+  const { user, isAuthenticated, isStaff, signInModalOpen, signInMode, openSignInModal, closeSignInModal } = useAuth();
   const { notify } = useToast();
 
   const getTabFromHash = useCallback((): NavTab => {
@@ -138,6 +141,8 @@ function LibraryWorkspace() {
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [inspectBookId, setInspectBookId] = useState<number | null>(null);
   const [borrowModalOpen, setBorrowModalOpen] = useState(false);
+  const [pendingBorrowBook, setPendingBorrowBook] = useState<Book | null>(null);
+  const [memberBorrowBook, setMemberBorrowBook] = useState<Book | null>(null);
   const [borrowPreselectBookId, setBorrowPreselectBookId] = useState<number | null>(null);
   const [borrowPreselectMemberId, setBorrowPreselectMemberId] = useState<number | null>(null);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
@@ -150,6 +155,10 @@ function LibraryWorkspace() {
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [returningLoan, setReturningLoan] = useState<LoanResponse | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) setMemberBorrowBook(null);
+  }, [isAuthenticated]);
 
   const focusCatalogSearch = useCallback(() => {
     setActiveTab('books');
@@ -366,9 +375,33 @@ function LibraryWorkspace() {
   };
 
   const handleOpenBorrow = (opts?: { bookId?: number; memberId?: number }) => {
+    if (!isStaff) {
+      const book = books.find((candidate) => candidate.id === opts?.bookId);
+      if (!book) {
+        setActiveTab('books');
+      } else if (!isAuthenticated) {
+        setPendingBorrowBook(book);
+        openSignInModal();
+      } else {
+        setMemberBorrowBook(book);
+      }
+      return;
+    }
     setBorrowPreselectBookId(opts?.bookId ?? null);
     setBorrowPreselectMemberId(opts?.memberId ?? null);
     setBorrowModalOpen(true);
+  };
+
+  const handleAuthenticated = (authenticatedUser: AuthUser) => {
+    if (!pendingBorrowBook) return;
+    if (hasStaffRole(authenticatedUser.roles)) {
+      setBorrowPreselectBookId(pendingBorrowBook.id);
+      setBorrowPreselectMemberId(null);
+      setBorrowModalOpen(true);
+    } else {
+      setMemberBorrowBook(pendingBorrowBook);
+    }
+    setPendingBorrowBook(null);
   };
 
   const handleOpenScanner = (mode: ScannerMode = 'checkout') => {
@@ -721,7 +754,35 @@ function LibraryWorkspace() {
       />
 
       {/* Native <dialog> Modals */}
-      <SignInModal open={signInModalOpen} onClose={closeSignInModal} />
+      <SignInModal
+        open={signInModalOpen}
+        initialMode={signInMode}
+        borrowTitle={pendingBorrowBook?.title}
+        onAuthenticated={handleAuthenticated}
+        onClose={() => {
+          closeSignInModal();
+          setPendingBorrowBook(null);
+        }}
+      />
+
+      {memberBorrowBook && user && !isStaff ? (
+        <MemberBorrowModal
+          key={memberBorrowBook.id}
+          book={memberBorrowBook}
+          email={user.email}
+          onClose={() => setMemberBorrowBook(null)}
+          onBorrowed={(loan) => {
+            setMemberBorrowBook(null);
+            setActiveTab('bookshelf');
+            void refreshAllCirculation();
+            notify({
+              variant: 'success',
+              title: 'Book borrowed',
+              message: `“${loan.bookTitle}” is due ${formatCalendarDate(loan.dueOn)}.`,
+            });
+          }}
+        />
+      ) : null}
 
       <BookFormModal
         open={bookFormOpen}

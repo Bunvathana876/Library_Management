@@ -474,6 +474,7 @@
 }
 
 .page-content {
+  container: page / inline-size;
   width: 100%;
   max-width: var(--content-max-width);
   margin-inline: auto;
@@ -520,6 +521,8 @@
 }
 
 .hero-heading {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-size: var(--text-display);
   font-weight: 500;
@@ -537,6 +540,7 @@
   font-size: var(--text-base);
   color: var(--text-secondary);
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .hero-actions {
@@ -1198,4 +1202,56 @@
 .overview-side-stack,
 .overview-side-stack > * {
   min-width: 0;
+}
+
+/* Use the content space left beside the sidebar, including enlarged text.
+   Viewport media queries above remain the fallback for older browsers. */
+@container page (max-width: 52rem) {
+  .two-col-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container page (max-width: 38rem) {
+  .hero-banner {
+    min-height: auto;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .hero-content {
+    flex: auto;
+    padding: var(--space-5) var(--space-5) var(--space-2);
+  }
+
+  .hero-artwork {
+    flex: none;
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+    padding: 0 var(--space-4);
+  }
+
+  .hero-artwork-img {
+    max-height: 195px;
+    object-position: center bottom;
+  }
+
+  .hero-actions {
+    width: 100%;
+  }
+
+  .hero-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+@container page (max-width: 28rem) {
+  .kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
