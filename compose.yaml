@@ -88,6 +88,19 @@ services:
       timeout: 5s
       retries: 5
 
+  public-website:
+    build:
+      context: ./public-website
+      args:
+        VITE_MEMBER_APP_URL: ${VITE_MEMBER_APP_URL:-http://localhost:3000/}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PUBLIC_WEBSITE_PORT:-3200}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   library_pg_data:

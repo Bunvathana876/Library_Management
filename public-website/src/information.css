@@ -1,0 +1,212 @@
+.info-page {
+  width: min(100% - clamp(40px, 10vw, 160px), 1240px);
+  margin: 0 auto;
+  padding-block: clamp(32px, 4vw, 60px);
+}
+.info-narrow {
+  max-width: 900px;
+}
+.info-intro {
+  margin-bottom: clamp(20px, 3vw, 40px);
+}
+.info-page h1 {
+  font-size: clamp(2.6rem, 5vw, 4.2rem);
+  line-height: 1.02;
+  margin: 0 0 14px;
+}
+.info-page h2 {
+  font-size: clamp(1.6rem, 2.4vw, 2rem);
+  line-height: 1.08;
+  margin: 0;
+}
+.info-page p:not(.kicker) {
+  line-height: 1.65;
+  max-width: 62ch;
+}
+.info-page .info-lede {
+  font-size: 1rem;
+}
+.info-about,
+.info-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: clamp(24px, 6vw, 96px);
+}
+.info-about {
+  align-items: center;
+}
+.info-about img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2/1;
+  object-fit: cover;
+}
+.info-split,
+.info-steps li,
+.info-faq details {
+  border-top: 1px solid #b9b3a6;
+}
+.info-split {
+  padding: clamp(18px, 2.8vw, 38px) 0;
+}
+.info-split p:first-child,
+.info-steps p {
+  margin-top: 0;
+}
+.info-steps {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  counter-reset: sequence;
+}
+.info-steps li {
+  counter-increment: sequence;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 0.83fr) minmax(0, 1fr);
+  column-gap: clamp(16px, 3vw, 48px);
+  padding: 20px 0;
+}
+.info-steps li::before {
+  content: counter(sequence, decimal-leading-zero);
+  font-variant-numeric: tabular-nums;
+  color: #91462e;
+}
+.info-steps li a {
+  grid-column: 3;
+  justify-self: start;
+}
+.info-faq {
+  margin-bottom: 36px;
+}
+.info-faq summary {
+  font: inherit;
+  font-size: 1rem;
+  padding: 15px 2px;
+  cursor: pointer;
+}
+.info-faq summary::marker {
+  color: #91462e;
+}
+.info-faq p {
+  margin: 0 0 22px;
+}
+.info-help {
+  display: flex;
+  gap: 16px 32px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+  .info-about,
+  .info-split {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .info-steps li {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 12px;
+  }
+  .info-steps li p,
+  .info-steps li a {
+    grid-column: 2;
+  }
+  .info-steps li p {
+    margin-bottom: 0;
+  }
+}
+.info-intro h1 em {
+  color: var(--rust);
+}
+.info-split p + p {
+  margin-top: 1em;
+}
+.info-split .under {
+  margin-top: 8px;
+}
+
+.info-page.questions,
+.info-page.loan-guide {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px 7%;
+  max-width: 1100px;
+}
+.questions > .under {
+  grid-column: 2;
+  justify-self: start;
+}
+.info-faq {
+  margin: 0;
+}
+.loan-guide .info-steps li {
+  grid-template-columns: 32px 1fr;
+  gap: 8px 14px;
+}
+.loan-guide .info-steps li :is(p, a) {
+  grid-column: 2;
+}
+.services-index {
+  counter-reset: service;
+}
+.services-index .info-split {
+  counter-increment: service;
+  grid-template-columns: 2rem minmax(0, 0.65fr) minmax(0, 1fr);
+  gap: clamp(12px, 3vw, 40px);
+}
+.services-index .info-split::before {
+  content: counter(service, decimal-leading-zero);
+  color: var(--rust);
+  font: italic 26px/1 var(--serif);
+}
+.story .info-split {
+  grid-template-columns: minmax(0, 0.5fr) minmax(0, 1fr);
+  max-width: 940px;
+  margin: auto;
+}
+.story .info-about {
+  gap: 5%;
+  grid-template-columns: 1fr 1.4fr;
+}
+.story .info-about img {
+  object-position: center 65%;
+}
+.contact,
+.missing {
+  padding-inline: clamp(16px, 4vw, 64px);
+  margin-block: clamp(24px, 5vw, 64px);
+  border-left: 3px solid var(--rust);
+  background: #efede4;
+}
+.info-help .under {
+  margin: 0;
+}
+.missing .kicker {
+  font-size: 14px;
+  color: var(--rust);
+  margin-bottom: 10px;
+}
+@media (max-width: 720px) {
+  .info-page.questions,
+  .info-page.loan-guide,
+  .story .info-about,
+  .story .info-split {
+    display: block;
+  }
+  .story .info-about img {
+    margin-top: 16px;
+  }
+  .story .info-split h2 {
+    margin-bottom: 8px;
+  }
+  .services-index .info-split {
+    grid-template-columns: 32px 1fr;
+  }
+  .services-index .info-split div {
+    grid-column: 2;
+  }
+  .info-faq {
+    margin-bottom: 10px;
+  }
+}
