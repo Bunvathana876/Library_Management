@@ -119,11 +119,8 @@ function Site() {
             </NavLink>
           ))}
           <a className="sign" href={loginUrl}>
-            Sign in
+            Sign in <ArrowUpRight size={14} />
           </a>
-          <Link className="button" to="/discover">
-            Explore library <ArrowUpRight />
-          </Link>
         </nav>
       </header>
       <main id="main" tabIndex={-1}>
@@ -143,7 +140,6 @@ function Site() {
         <Brand />
         <nav aria-label="Footer navigation">
           {[
-            ...nav.slice(1),
             ["/how-it-works", "How it works"],
             ["/contact", "Contact"],
           ].map(([url, label]) => (
@@ -152,7 +148,6 @@ function Site() {
             </Link>
           ))}
           <a href={catalogUrl}>Library application</a>
-          <a href={loginUrl}>Member sign-in</a>
         </nav>
       </footer>
     </>

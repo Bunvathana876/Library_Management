@@ -30,13 +30,10 @@ export function Discover() {
     return "?" + value.toString();
   }
   return (
-    <section className="catalog-page">
+    <section className="catalog-page discovery">
       <header className="catalog-intro">
         <h1>Discover books</h1>
-        <p>
-          Browse the newest additions, look up a favourite author, or follow a
-          subject somewhere unexpected.
-        </p>
+        <p>Search the collection by title, author or subject.</p>
       </header>
       <form
         role="search"
@@ -78,46 +75,48 @@ export function Discover() {
         </label>
         <button type="submit">Search books</button>
       </form>
-      {categories.result && !categories.result.data && (
-        <Feedback failed retry={categories.retry} noun="subjects" />
-      )}
-      {books ? (
-        <>
-          <p role="status" className="catalog-count">
-            {books.length} {books.length === 1 ? "title" : "titles"} · Newest
-            additions first
-          </p>
-          {books.length ? (
-            <BookList books={books.slice((current - 1) * 12, current * 12)} />
-          ) : (
-            <p>
-              {search || category ? (
-                <>
-                  No titles match this search.{" "}
-                  <Link to="/discover">Clear filters</Link>
-                </>
-              ) : (
-                "There are no titles in the catalog yet."
-              )}
+      <div className="catalog-results">
+        {categories.result && !categories.result.data && (
+          <Feedback failed retry={categories.retry} noun="subjects" />
+        )}
+        {books ? (
+          <>
+            <p role="status" className="catalog-count">
+              {books.length} {books.length === 1 ? "title" : "titles"} · Newest
+              additions first
             </p>
-          )}
-          {pages > 1 && (
-            <nav className="catalog-pager" aria-label="Catalog pages">
-              {current > 1 && (
-                <Link to={pageLink(current - 1)}>Previous page</Link>
-              )}
-              <span>
-                Page {current} of {pages}
-              </span>
-              {current < pages && (
-                <Link to={pageLink(current + 1)}>Next page</Link>
-              )}
-            </nav>
-          )}
-        </>
-      ) : (
-        <Feedback failed={!!result} retry={retry} />
-      )}
+            {books.length ? (
+              <BookList books={books.slice((current - 1) * 12, current * 12)} />
+            ) : (
+              <p>
+                {search || category ? (
+                  <>
+                    No titles match this search.{" "}
+                    <Link to="/discover">Clear filters</Link>
+                  </>
+                ) : (
+                  "There are no titles in the catalog yet."
+                )}
+              </p>
+            )}
+            {pages > 1 && (
+              <nav className="catalog-pager" aria-label="Catalog pages">
+                {current > 1 && (
+                  <Link to={pageLink(current - 1)}>Previous page</Link>
+                )}
+                <span>
+                  Page {current} of {pages}
+                </span>
+                {current < pages && (
+                  <Link to={pageLink(current + 1)}>Next page</Link>
+                )}
+              </nav>
+            )}
+          </>
+        ) : (
+          <Feedback failed={!!result} retry={retry} />
+        )}
+      </div>
     </section>
   );
 }
@@ -143,7 +142,7 @@ export function BookDetails({
         <div className="catalog-detail">
           <Cover book={book} priority />
           <div>
-            <p>{book.category}</p>
+            {book.category && <p>{book.category}</p>}
             <h1>{book.title}</h1>
             <p className="catalog-byline">By {book.author}</p>
             <dl>
@@ -165,7 +164,7 @@ export function BookDetails({
                 ))}
             </dl>
             <a className="catalog-action" href={memberUrl}>
-              Open the library application <span aria-hidden="true">↗</span>
+              View in member catalog <span aria-hidden="true">↗</span>
             </a>
           </div>
         </div>

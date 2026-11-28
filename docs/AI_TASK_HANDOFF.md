@@ -1,5 +1,9 @@
 # AI task handoff
 
+## Public website creative refinement · 2026-11-28
+
+The current visitor design uses Instrument Serif and Manrope, a panoramic reading-table hero and new typographic catalog covers. The source and Docker service are in `public-website/`. The local review instance runs at `http://localhost:3220/`. See the [creative refinement report](PUBLIC_WEBSITE_CREATIVE_REFINEMENT_REPORT.md) for the before-and-after images, accessibility checks and performance measurements. The work is on `feature/public-website-creative-refinement`.
+
 ## Athenaeum public website · 2026-11-27
 
 The independent visitor application is in `public-website/` on `feature/public-library-website`. The member application retains its existing screens, sessions and circulation workflows. Its authentication context now recognizes login and registration links from the public site. The existing API and database schema required no changes.

@@ -60,19 +60,18 @@ const questions = [
 
 function About() {
   return (
-    <article className="info-page">
+    <article className="info-page story">
       <div className="info-intro info-about">
         <div>
-          <p className="kicker">About the library</p>
           <h1>
-            Room to <em>read.</em>
+            A shared <em>reading room.</em>
           </h1>
           <p className="info-lede">
-            Athenaeum connects readers with physical books they can discover
-            online and borrow from the library.
+            There’s room here for the book you came to find and the one you
+            discover on the way.
           </p>
         </div>
-        <Photograph reading />
+        <Photograph primary />
       </div>
       <section className="info-split">
         <h2>For the curious.</h2>
@@ -111,11 +110,10 @@ function About() {
 
 function Services() {
   return (
-    <article className="info-page">
+    <article className="info-page services-index">
       <div className="info-intro">
-        <p className="kicker">Library services</p>
         <h1>
-          What you can <em>do.</em>
+          Library <em>services.</em>
         </h1>
       </div>
       <section className="info-split">
@@ -164,15 +162,13 @@ function Services() {
 
 function Guide() {
   return (
-    <article className="info-page">
+    <article className="info-page loan-guide">
       <div className="info-intro">
-        <p className="kicker">How it works</p>
         <h1>
           Your first <em>loan.</em>
         </h1>
         <p className="info-lede">
-          From finding a title to returning your copy, here is how to borrow
-          from Athenaeum.
+          A reader’s guide to borrowing, reserving and returning physical books.
         </p>
       </div>
       <ol className="info-steps">
@@ -199,9 +195,8 @@ function Guide() {
 
 function FAQ() {
   return (
-    <article className="info-page info-narrow">
+    <article className="info-page questions info-narrow">
       <div className="info-intro">
-        <p className="kicker">FAQ</p>
         <h1>
           Reader <em>questions.</em>
         </h1>
@@ -223,16 +218,15 @@ function FAQ() {
 
 function Contact() {
   return (
-    <article className="info-page info-narrow">
+    <article className="info-page contact info-narrow">
       <div className="info-intro">
-        <p className="kicker">Contact</p>
         <h1>
           Library <em>help.</em>
         </h1>
         <p className="info-lede">
           For a question about a return, a fine or your account standing, speak
-          with staff at the circulation desk. Athenaeum has not published a
-          public email address or phone number here.
+          with staff at the circulation desk. Bring your member details so they
+          can look up your account.
         </p>
       </div>
       <div className="info-help">
@@ -249,14 +243,14 @@ function Contact() {
 
 function NotFound() {
   return (
-    <article className="info-page info-narrow">
+    <article className="info-page missing info-narrow">
       <div className="info-intro">
         <p className="kicker">404</p>
         <h1>
           Page not <em>found.</em>
         </h1>
         <p className="info-lede">
-          This address does not lead to a page in the library.
+          Return to the reading room or look up a title in the catalog.
         </p>
       </div>
       <div className="info-help">

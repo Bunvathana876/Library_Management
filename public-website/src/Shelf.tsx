@@ -78,7 +78,7 @@ export function Cover({
         <div className="catalog-cloth">
           <span>{book.author}</span>
           <b>{book.title}</b>
-          <i>❧</i>
+          <i className="cover-imprint" />
         </div>
       )}
     </div>
